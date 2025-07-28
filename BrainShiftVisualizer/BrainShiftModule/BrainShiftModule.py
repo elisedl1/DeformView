@@ -254,7 +254,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         state = self.ui.enableUsBorderDisplay.checkState() 
     
         self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state)
-
+        
 
 
     def onConvertTagFCSVButtonClicked(self):
@@ -466,20 +466,28 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 referenceVolume=self._parameterNode.referenceVolume,
                 transformNode=self._parameterNode.transformNode
             )
-            slicer.util.setSliceViewerLayers(
-                # background=self._parameterNode.referenceVolume,
-            
-                background=self._parameterNode.backgroundVolume,
-                foreground=self._parameterNode.displacementMagnitudeVolume
-                                
+
+            qt.QMessageBox.information(
+                slicer.util.mainWindow(),
+                "Success",
+                "Success! \nDisplacement files created and available in Data - Use 'Load Volume' to display."
             )
+
+
+            # slicer.util.setSliceViewerLayers(
+            #     # background=self._parameterNode.referenceVolume,
             
-            # change to color thats selected
-            colorNode = self.ui.colorMapSelector.currentNode()
-            if colorNode and self._parameterNode.displacementMagnitudeVolume:
-                displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
-                if displayNode:
-                    displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            #     background=self._parameterNode.backgroundVolume,
+            #     foreground=self._parameterNode.displacementMagnitudeVolume
+                                
+            # )
+            
+            # # change to color thats selected
+            # colorNode = self.ui.colorMapSelector.currentNode()
+            # if colorNode and self._parameterNode.displacementMagnitudeVolume:
+            #     displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
+            #     if displayNode:
+            #         displayNode.SetAndObserveColorNodeID(colorNode.GetID())
 
 
     def onLoadDisplacementVolume(self) -> None:
@@ -841,30 +849,33 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         print(f"Unique values count: {num_unique}")
         print(f"Unique values count: {num_unique}")
 
-        # enhance display with color map
-        if not outputVolume.GetDisplayNode():
-            slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
-        displayNode = outputVolume.GetDisplayNode()
-        displayNode.AutoWindowLevelOff()
-        displayNode.SetWindow(10.0)
-        displayNode.SetLevel(5.0)
+        # # enhance display with color map
+        # if not outputVolume.GetDisplayNode():
+        #     slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
+        # displayNode = outputVolume.GetDisplayNode()
+        # displayNode.AutoWindowLevelOff()
+        # displayNode.SetWindow(10.0)
+        # displayNode.SetLevel(5.0)
       
 
-        displayNode.SetThreshold(0.05, 10.0)
-        displayNode.SetApplyThreshold(True)
+        # displayNode.SetThreshold(0.05, 10.0)
+        # displayNode.SetApplyThreshold(True)
 
-        colorNode = slicer.util.getNode("Inferno")
-        if colorNode:
-            displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+        # colorNode = slicer.util.getNode("Inferno")
+        # if colorNode:
+        #     displayNode.SetAndObserveColorNodeID(colorNode.GetID())
 
         #Store in UI and in parameter node 
-        self.ui.displacementMagnitudeVolume.setCurrentNode(outputVolume)
+        # self.ui.displacementMagnitudeVolume.setCurrentNode(outputVolume)
 
-        self._parameterNode().SetNodeReferenceID("displacementMagnitudeVolume", outputVolume.GetID())
+        # self._parameterNode().SetNodeReferenceID("displacementMagnitudeVolume", outputVolume.GetID())
 
 
         #return outputVolume
         logging.info(f"Displacement computation completed in {time.time() - startTime:.2f} s")
+
+        # return outputVolume
+
 
     
     def showNonZeroWireframe(self, foregroundVolume, state, reload=False, modelName="NonZeroWireframe"):
