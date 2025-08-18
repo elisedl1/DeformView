@@ -328,10 +328,21 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def exit(self) -> None:
         """Called each time the user opens a different module."""
         # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
+
+        # delete temp displacement if it exists
+        if hasattr(self, "_tempDisplacementVolume") and self._tempDisplacementVolume:
+            slicer.mrmlScene.RemoveNode(self._tempDisplacementVolume)
+            self._tempDisplacementVolume = None
+
         if self._parameterNode:
             self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
             self._parameterNodeGuiTag = None
             self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+
+
+
+
+        
 
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
@@ -474,45 +485,53 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             )
 
 
-            # slicer.util.setSliceViewerLayers(
-            #     # background=self._parameterNode.referenceVolume,
-            
-            #     background=self._parameterNode.backgroundVolume,
-            #     foreground=self._parameterNode.displacementMagnitudeVolume
-                                
-            # )
-            
-            # # change to color thats selected
-            # colorNode = self.ui.colorMapSelector.currentNode()
-            # if colorNode and self._parameterNode.displacementMagnitudeVolume:
-            #     displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
-            #     if displayNode:
-            #         displayNode.SetAndObserveColorNodeID(colorNode.GetID())
-
 
     def onLoadDisplacementVolume(self) -> None:
 
-        #selectedVolume = self.ui.existingDisplacementVolumeSelector.currentNode()
+        # delete existing temp displacement if it exists
+
+        if hasattr(self, "_tempDisplacementVolume") and self._tempDisplacementVolume:
+            slicer.mrmlScene.RemoveNode(self._tempDisplacementVolume)
+            self._tempDisplacementVolume = None
+        
+        # displacement volume
         selectedVolume = self.ui.MRMLReplacementVolume.currentNode()
+
+        # one of fixed or moving volumes (to be used to calculate the wire)
         usVolume = self.ui.referenceVolume.currentNode()
 
-        # referenceVolume = self._parameterNode.referenceVolume
+        # one of fixed or moving volumes (used as background image)
         backgroundVolume = self._parameterNode.backgroundVolume
         
         state = self.ui.enableUsBorderDisplay.checkState()
         self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state, reload=True)
+
         # visualize it
+        # slicer.util.setSliceViewerLayers(
+        #     background=backgroundVolume,
+        #     foreground=selectedVolume
+        # )
+        
+        
+        # create temporary displacement volume
+        tempVolume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
+        tempVolume.CopyContent(selectedVolume)
+        tempVolume.SetName(selectedVolume.GetName() + "_temp")
+
+        # visualize the temporary copy
         slicer.util.setSliceViewerLayers(
             background=backgroundVolume,
-            foreground=selectedVolume
+            foreground=tempVolume
         )
-        
+
         self.onLoadExpertLabelsClicked()
+
+
 
         # change to selected color
         colorNode = self.ui.colorMapSelector.currentNode()
         if colorNode:
-            displayNode = selectedVolume.GetDisplayNode()
+            displayNode = tempVolume.GetDisplayNode()
             displayNode.SetAndObserveColorNodeID(colorNode.GetID())
             displayNode.Modified()
 
@@ -544,6 +563,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.thresholdMaxSpinBox.setValue(maxScalar)
         
 
+        self._tempDisplacementVolume = tempVolume
 
 
 
