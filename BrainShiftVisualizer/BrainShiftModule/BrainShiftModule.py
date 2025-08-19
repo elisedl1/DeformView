@@ -345,7 +345,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
         # Parameter node will be reset, do not use it anymore
-        self.setParameterNode(None)
+        #IJZF self.setParameterNode(None)
 
     def onSceneEndClose(self, caller, event) -> None:
         """Called just after the scene is closed."""
@@ -522,7 +522,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._tempDisplacementVolume = None
         
         # displacement volume
-        selectedVolume = self.ui.MRMLReplacementVolume.currentNode()
+        selectedVolume = self.ui.loadedTransformVolume.currentNode()
 
         # one of fixed or moving volumes (to be used to calculate the wire)
         usVolume = self.ui.referenceVolume.currentNode()
