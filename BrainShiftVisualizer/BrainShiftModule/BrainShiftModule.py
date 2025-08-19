@@ -252,7 +252,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         state = self.ui.enableUsBorderDisplay.checkState() 
     
         self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state)
-
+        
 
 
     def onConvertTagFCSVButtonClicked(self):
@@ -326,10 +326,21 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def exit(self) -> None:
         """Called each time the user opens a different module."""
         # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
+
+        # delete temp displacement if it exists
+        if hasattr(self, "_tempDisplacementVolume") and self._tempDisplacementVolume:
+            slicer.mrmlScene.RemoveNode(self._tempDisplacementVolume)
+            self._tempDisplacementVolume = None
+
         if self._parameterNode:
             self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
             self._parameterNodeGuiTag = None
             self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+
+
+
+
+        
 
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
@@ -467,29 +478,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 transformNode=self._parameterNode.transformNode
             )
 
-            # Create Jacobian  (vector volume)
-            jacobianVolume = self.logic.computeJacobianMagnitude(
-                referenceVolume=self._parameterNode.referenceVolume,
-                transformNode=self._parameterNode.transformNode
+            qt.QMessageBox.information(
+                slicer.util.mainWindow(),
+                "Success",
+                "Success! \nDisplacement files created and available in Data - Use 'Load Volume' to display."
             )
-            
-            self._parameterNode.jacobianMagnitudeVolume = jacobianVolume  # Save for access
-            self._parameterNode.displacementMagnitudeVolume = displacementVolume  # Save for access
 
-
-            slicer.util.setSliceViewerLayers(
-                # background=self._parameterNode.referenceVolume,
-                background=self._parameterNode.backgroundVolume,
-                foreground=self._parameterNode.displacementMagnitudeVolume
-                                
-            )
-            
-            # change to color thats selected
-            colorNode = self.ui.colorMapSelector.currentNode()
-            if colorNode and self._parameterNode.displacementMagnitudeVolume:
-                displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
-                if displayNode:
-                    displayNode.SetAndObserveColorNodeID(colorNode.GetID())
 
 
 
@@ -521,19 +515,19 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onLoadDisplacementVolume(self) -> None:
 
-        '''
-        Runs when user selects the Load Volume button
-        
-        '''
-        #selectedVolume = self.ui.existingDisplacementVolumeSelector.currentNode()
-        selectedVolume = self.ui.loadedTransformVolume.currentNode()
-        clonedDisplacementVolume = slicer.mrmlScene.CopyNode(selectedVolume)
+        # delete existing temp displacement if it exists
 
+        if hasattr(self, "_tempDisplacementVolume") and self._tempDisplacementVolume:
+            slicer.mrmlScene.RemoveNode(self._tempDisplacementVolume)
+            self._tempDisplacementVolume = None
+        
+        # displacement volume
+        selectedVolume = self.ui.MRMLReplacementVolume.currentNode()
+
+        # one of fixed or moving volumes (to be used to calculate the wire)
         usVolume = self.ui.referenceVolume.currentNode()
-        
-        #print(f"Displacement Volume: {self._parameterNode.displacementMagnitudeVolume}")
 
-        # referenceVolume = self._parameterNode.referenceVolume
+        # one of fixed or moving volumes (used as background image)
         backgroundVolume = self._parameterNode.backgroundVolume
         
         state = self.ui.enableUsBorderDisplay.checkState()
@@ -553,18 +547,33 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # if enableJacobian:
         #     selectedVolume = self.ui.loadedTransformVolume.currentNode()
 
+
         # visualize it
+        # slicer.util.setSliceViewerLayers(
+        #     background=backgroundVolume,
+        #     foreground=selectedVolume
+        # )
+        
+        
+        # create temporary displacement volume
+        tempVolume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
+        tempVolume.CopyContent(selectedVolume)
+        tempVolume.SetName(selectedVolume.GetName() + "_temp")
+
+        # visualize the temporary copy
         slicer.util.setSliceViewerLayers(
             background=backgroundVolume,
-            foreground=selectedVolume
+            foreground=tempVolume
         )
-        
+
         self.onLoadExpertLabelsClicked()
+
+
 
         # change to selected color
         colorNode = self.ui.colorMapSelector.currentNode()
         if colorNode:
-            displayNode = selectedVolume.GetDisplayNode()
+            displayNode = tempVolume.GetDisplayNode()
             displayNode.SetAndObserveColorNodeID(colorNode.GetID())
             displayNode.Modified()
 
@@ -597,6 +606,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.thresholdMaxSpinBox.setValue(maxScalar)
         
 
+        self._tempDisplacementVolume = tempVolume
 
 
 
@@ -940,30 +950,33 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         print(f"Unique values count: {num_unique}")
         print(f"Unique values count: {num_unique}")
 
-        # enhance display with color map
-        if not outputVolume.GetDisplayNode():
-            slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
-        displayNode = outputVolume.GetDisplayNode()
-        displayNode.AutoWindowLevelOff()
-        displayNode.SetWindow(10.0)
-        displayNode.SetLevel(5.0)
+        # # enhance display with color map
+        # if not outputVolume.GetDisplayNode():
+        #     slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
+        # displayNode = outputVolume.GetDisplayNode()
+        # displayNode.AutoWindowLevelOff()
+        # displayNode.SetWindow(10.0)
+        # displayNode.SetLevel(5.0)
       
 
-        displayNode.SetThreshold(0.05, 10.0)
-        displayNode.SetApplyThreshold(True)
+        # displayNode.SetThreshold(0.05, 10.0)
+        # displayNode.SetApplyThreshold(True)
 
-        colorNode = slicer.util.getNode("Inferno")
-        if colorNode:
-            displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+        # colorNode = slicer.util.getNode("Inferno")
+        # if colorNode:
+        #     displayNode.SetAndObserveColorNodeID(colorNode.GetID())
 
         #Store in UI and in parameter node 
-        self.ui.displacementMagnitudeVolume.setCurrentNode(outputVolume)
+        # self.ui.displacementMagnitudeVolume.setCurrentNode(outputVolume)
 
-        #self.SetNodeReferenceID("displacementMagnitudeVolume", outputVolume.GetID())
+        self._parameterNode().SetNodeReferenceID("displacementMagnitudeVolume", outputVolume.GetID())
 
         #self._parameterNode().displacementMagnitudeVolume = outputVolume
         #return outputVolume
         logging.info(f"Displacement computation completed in {time.time() - startTime:.2f} s")
+
+        # return outputVolume
+
 
         return outputVolume
 
@@ -1091,34 +1104,35 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         outputVolume.SetOrigin(referenceVolume.GetOrigin())
         outputVolume.Modified()
 
-        # enhance display with color map
-        if not outputVolume.GetDisplayNode():
-            slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
-            
-        outputVolume.GetDisplayNode().SetAndObserveColorNodeID("vtkMRMLColorTableNodeRainbow")
-
-        logging.info("Jacobian computation complete.")
-
-        outputVolume.GetDisplayNode().AutoWindowLevelOff()
-        outputVolume.GetDisplayNode().SetWindow(10.0)
-        outputVolume.GetDisplayNode().SetLevel(5.0)
+        # # enhance display with color map
+        # if not outputVolume.GetDisplayNode():
+        #     slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
+        # displayNode = outputVolume.GetDisplayNode()
+        # displayNode.AutoWindowLevelOff()
+        # displayNode.SetWindow(10.0)
+        # displayNode.SetLevel(5.0)
       
 
-        outputVolume.GetDisplayNode().SetThreshold(0.05, 10.0)
-        outputVolume.GetDisplayNode().SetApplyThreshold(True)
+        # displayNode.SetThreshold(0.05, 10.0)
+        # displayNode.SetApplyThreshold(True)
 
-        colorNode = slicer.util.getNode("Inferno")
-        if colorNode:
-            outputVolume.GetDisplayNode().SetAndObserveColorNodeID(colorNode.GetID())
+        # colorNode = slicer.util.getNode("Inferno")
+        # if colorNode:
+        #     displayNode.SetAndObserveColorNodeID(colorNode.GetID())
 
         #Store in UI and in parameter node 
-        self.ui.jacobianMagnitudeVolume.setCurrentNode(outputVolume)
+        # self.ui.displacementMagnitudeVolume.setCurrentNode(outputVolume)
 
-        self._parameterNode().SetNodeReferenceID("jacobianMagnitudeVolume", outputVolume.GetID())
-
-        return outputVolume
+        # self._parameterNode().SetNodeReferenceID("displacementMagnitudeVolume", outputVolume.GetID())
 
 
+        #return outputVolume
+        logging.info(f"Displacement computation completed in {time.time() - startTime:.2f} s")
+
+        # return outputVolume
+
+
+    
     def showNonZeroWireframe(self, foregroundVolume, state, reload=False, modelName="NonZeroWireframe"):
         """
         Extracts the non-zero region of a volume and displays its surface wireframe
