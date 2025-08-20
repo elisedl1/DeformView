@@ -854,269 +854,397 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
             return None, None
         return np.array(source_points), np.array(target_points)
 
+
     def computeDisplacementMagnitude(self,
                                  referenceVolume: vtkMRMLScalarVolumeNode,
-                                 transformNode: vtkMRMLTransformNode
+                                 transformNode:   vtkMRMLTransformNode,
                                  ) -> vtkMRMLScalarVolumeNode:
         """
-        Run the processing algorithm.
-        Can be used without GUI widget.
-
-        The displacementMagnitudeVolume doesn't get created until this point
+        Compute voxel-wise displacement magnitude from a BSpline transform.
+        Returns a scalar volume node.
         """
-        print("in computeDisplacementMagnitude")
+
+        import SimpleITK as sitk
+        import sitkUtils
+
         if not referenceVolume:
-            raise ValueError("Input volume is invalid")
-
+            raise ValueError("Reference volume is invalid")
         if not transformNode:
-            raise ValueError("output volume is invalid")
-
-        import time
-        import numpy as np 
-        import vtk
-        from vtk.util import numpy_support
-        from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
+            raise ValueError("Transform node is invalid")
         
         volumesLogic = slicer.modules.volumes.logic()
-        outputVolume = volumesLogic.CloneVolume(slicer.mrmlScene, referenceVolume, referenceVolume.GetName() + "_magnitude")
-
-        #outputVolume.CopyContent(referenceVolume)  # deep copy by default
-        #outputVolume.CreateDefaultDisplayNodes()
-
-        startTime = time.time()
-        logging.info("Displacement computation started")
-
-        # fill this in
-
-        imageData = referenceVolume.GetImageData()
-        logging.info(f"outputVolume check: {imageData.GetExtent()}")
-
-        print("outputVolume image data: ", imageData)
-        if imageData is None:
-            logging.error("Reference volume has no image data")
-            return
-        dims = imageData.GetDimensions()
-        logging.info(f"Reference volume dims: {dims}")
-
-
-        spacing = referenceVolume.GetSpacing()
-        origin = referenceVolume.GetOrigin()
-        logging.info(f"Reference origin: {origin}")
-
-        # Set up transform
-        transformToWorld = vtk.vtkGeneralTransform()
-        transformNode.GetTransformToWorld(transformToWorld)
-
-        # prepare output image
-        magnitudeImage = vtk.vtkImageData()
-        magnitudeImage.SetDimensions(dims)
-        magnitudeImage.AllocateScalars(vtk.VTK_FLOAT, 1)
-        magnitudeImage.SetExtent(imageData.GetExtent())
-
-
-        # iterate over each voxel in reference image
-        for z in range(dims[2]):
-            for y in range(dims[1]):
-                for x in range(dims[0]):
-                    # Voxel coordinate in RAS
-                    ras = [origin[0] + x * spacing[0],
-                        origin[1] + y * spacing[1],
-                        origin[2] + z * spacing[2]]
-                    
-                    transformedPoint = transformToWorld.TransformPoint(ras)
-                    displacement = np.array(transformedPoint) - np.array(ras)
-                    magnitude = np.linalg.norm(displacement)
-                    magnitudeImage.SetScalarComponentFromFloat(x, y, z, 0, magnitude)
-
-        outputVolume.SetAndObserveImageData(magnitudeImage)
-        outputVolume.CopyOrientation(referenceVolume)
-        outputVolume.SetSpacing(referenceVolume.GetSpacing())
-        outputVolume.SetOrigin(referenceVolume.GetOrigin())
-        outputVolume.Modified()
         
-        # until here
+        outputVolume = volumesLogic.CloneVolume(slicer.mrmlScene, referenceVolume, referenceVolume.GetName() + "_magnitude")
+        
+        # Get reference image as SimpleITK image
+        refImage = sitkUtils.PullVolumeFromSlicer(referenceVolume)
 
-        num_unique, unique_vals = self.countUniqueValues(outputVolume)
-        print(f"Unique values count: {num_unique}")
-        print(f"Unique values count: {num_unique}")
+       #imageData = refImage.GetImageData()
+        print("outputVolume image data: ", refImage)
+        
+        if refImage is None:
+            raise Exception("Reference volume has no image data")
+            
+        
+        # Convert MRML BSpline transform to ITK transform
+        itkTx = sitk.ReadTransform(transformNode.GetStorageNode().GetFileName())
 
-        # enhance display with color map
+        # Resample the transform into a displacement field on the reference grid
+        dispField = sitk.TransformToDisplacementField(
+            itkTx,
+            sitk.sitkVectorFloat64,
+            refImage.GetSize(),
+            refImage.GetOrigin(),
+            refImage.GetSpacing(),
+            refImage.GetDirection()
+        )
+
+        # Compute magnitude image
+        dispMag = sitk.VectorMagnitude(dispField)
+
+        # Push back to Slicer
+        outputVolume = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLScalarVolumeNode",
+            referenceVolume.GetName() + "_displacementMagnitude"
+        )
+        sitkUtils.PushVolumeToSlicer(dispMag, outputVolume)
+        # Ensure display node exists
         if not outputVolume.GetDisplayNode():
-            slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
-        displayNode = outputVolume.GetDisplayNode()
-        displayNode.AutoWindowLevelOff()
-        displayNode.SetWindow(10.0)
-        displayNode.SetLevel(5.0)
-      
+            #slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
+            outputVolume.CreateDefaultDisplayNodes()
 
+
+        displayNode = outputVolume.GetDisplayNode()
+
+        # Disable auto WL/CL so it doesn’t reset every time
+        displayNode.AutoWindowLevelOff()
+        # displayNode.SetWindow(10.0)
+        # displayNode.SetLevel(5.0)
+
+        array = sitk.GetArrayFromImage(dispMag)
+        minVal, maxVal = float(array.min()), float(array.max())
+        displayNode.SetWindow(maxVal - minVal)
+        displayNode.SetLevel((maxVal + minVal) / 2)
+
+        # Apply threshold for visibility
         displayNode.SetThreshold(0.05, 10.0)
         displayNode.SetApplyThreshold(True)
+
+        # Use Inferno color map if available
+        colorNode = slicer.util.getNode("Inferno")
+        if colorNode:
+            displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+        return outputVolume
+
+
+    # def computeDisplacementMagnitude(self,
+    #                              referenceVolume: vtkMRMLScalarVolumeNode,
+    #                              transformNode: vtkMRMLTransformNode
+    #                              ) -> vtkMRMLScalarVolumeNode:
+    #     """
+    #     Run the processing algorithm.
+    #     Can be used without GUI widget.
+
+    #     The displacementMagnitudeVolume doesn't get created until this point
+    #     """
+    #     print("in computeDisplacementMagnitude")
+    #     if not referenceVolume:
+    #         raise ValueError("Input volume is invalid")
+
+    #     if not transformNode:
+    #         raise ValueError("output volume is invalid")
+
+    #     import time
+    #     import numpy as np 
+    #     import vtk
+    #     from vtk.util import numpy_support
+    #     from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
+        
+    #     volumesLogic = slicer.modules.volumes.logic()
+    #     outputVolume = volumesLogic.CloneVolume(slicer.mrmlScene, referenceVolume, referenceVolume.GetName() + "_magnitude")
+
+    #     #outputVolume.CopyContent(referenceVolume)  # deep copy by default
+    #     #outputVolume.CreateDefaultDisplayNodes()
+
+    #     startTime = time.time()
+    #     logging.info("Displacement computation started")
+
+    #     # fill this in
+
+    #     imageData = referenceVolume.GetImageData()
+    #     logging.info(f"outputVolume check: {imageData.GetExtent()}")
+
+    #     print("outputVolume image data: ", imageData)
+    #     if imageData is None:
+    #         logging.error("Reference volume has no image data")
+    #         return
+    #     dims = imageData.GetDimensions()
+    #     logging.info(f"Reference volume dims: {dims}")
+
+
+    #     spacing = referenceVolume.GetSpacing()
+    #     origin = referenceVolume.GetOrigin()
+    #     logging.info(f"Reference origin: {origin}")
+
+    #     # Set up transform
+    #     transformToWorld = vtk.vtkGeneralTransform()
+    #     transformNode.GetTransformToWorld(transformToWorld)
+
+    #     # prepare output image
+    #     magnitudeImage = vtk.vtkImageData()
+    #     magnitudeImage.SetDimensions(dims)
+    #     magnitudeImage.AllocateScalars(vtk.VTK_FLOAT, 1)
+    #     magnitudeImage.SetExtent(imageData.GetExtent())
+
+
+    #     # iterate over each voxel in reference image
+    #     for z in range(dims[2]):
+    #         for y in range(dims[1]):
+    #             for x in range(dims[0]):
+    #                 # Voxel coordinate in RAS
+    #                 ras = [origin[0] + x * spacing[0],
+    #                     origin[1] + y * spacing[1],
+    #                     origin[2] + z * spacing[2]]
+                    
+    #                 transformedPoint = transformToWorld.TransformPoint(ras)
+    #                 displacement = np.array(transformedPoint) - np.array(ras)
+    #                 magnitude = np.linalg.norm(displacement)
+    #                 magnitudeImage.SetScalarComponentFromFloat(x, y, z, 0, magnitude)
+
+    #     outputVolume.SetAndObserveImageData(magnitudeImage)
+    #     outputVolume.CopyOrientation(referenceVolume)
+    #     outputVolume.SetSpacing(referenceVolume.GetSpacing())
+    #     outputVolume.SetOrigin(referenceVolume.GetOrigin())
+    #     outputVolume.Modified()
+        
+    #     # until here
+
+    #     num_unique, unique_vals = self.countUniqueValues(outputVolume)
+    #     print(f"Unique values count: {num_unique}")
+    #     print(f"Unique values count: {num_unique}")
+
+    #     # enhance display with color map
+    #     if not outputVolume.GetDisplayNode():
+    #         slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
+    #     displayNode = outputVolume.GetDisplayNode()
+    #     displayNode.AutoWindowLevelOff()
+    #     displayNode.SetWindow(10.0)
+    #     displayNode.SetLevel(5.0)
+      
+
+    #     displayNode.SetThreshold(0.05, 10.0)
+    #     displayNode.SetApplyThreshold(True)
+
+    #     colorNode = slicer.util.getNode("Inferno")
+    #     if colorNode:
+    #         displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+
+    #     #Store in UI and in parameter node 
+    #     #self.ui.displacementMagnitudeVolume.setCurrentNode(outputVolume)
+
+    #     #self.SetNodeReferenceID("displacementMagnitudeVolume", outputVolume.GetID())
+
+    #     #self._parameterNode().displacementMagnitudeVolume = outputVolume
+    #     #return outputVolume
+    #     logging.info(f"Displacement computation completed in {time.time() - startTime:.2f} s")
+
+    #     return outputVolume
+
+    def computeJacobianMagnitude(self,
+                                referenceVolume: vtkMRMLScalarVolumeNode,
+                                transformNode: vtkMRMLTransformNode
+                                ) -> vtkMRMLScalarVolumeNode:
+        import slicer
+        import vtk
+        import SimpleITK as sitk
+        import sitkUtils
+        import numpy as np
+
+        # Step 1: Get reference image as sitk
+        refImage = sitkUtils.PullVolumeFromSlicer(referenceVolume)
+
+        # Step 2: Convert transformNode (vtkMRMLBSplineTransformNode) to sitk.Transform
+        # vtk_transform = vtk.vtkGeneralTransform()
+        # transformNode.GetTransformToWorld(vtk_transform)
+        # sitk_transform = sitk.Transform(3, sitk.sitkBSpline)
+        # sitk_transform.SetFixedParameters(vtk_transform.GetTransform().GetParameters())
+        
+        # sitk_transform = sitkUtils.PullTransformFromSlicer(transformNode)
+        itkTx = sitk.ReadTransform(transformNode.GetStorageNode().GetFileName())
+
+        # Step 3: Create displacement field from transform
+        # dispFilter = sitk.TransformToDisplacementFieldFilter()
+        # dispFilter.SetReferenceImage(reference_sitk)
+        # displacementField = dispFilter.Execute(sitk_transform)
+
+            # Convert transform to displacement field in reference grid
+        displacementField = sitk.TransformToDisplacementField(
+            itkTx,
+            sitk.sitkVectorFloat64,
+            refImage.GetSize(),
+            refImage.GetOrigin(),
+            refImage.GetSpacing(),
+            refImage.GetDirection()
+        )
+
+        # Step 4: Compute Jacobian determinant
+        jacDet = sitk.DisplacementFieldJacobianDeterminant(displacementField)
+
+        # Step 5: Take magnitude (absolute value)
+        jacMagnitude = sitk.Abs(jacDet)
+
+        # Step 6: Push result back into Slicer
+        outputVolume = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLScalarVolumeNode",
+            referenceVolume.GetName() + "_jacobianMagnitude"
+        )
+        sitkUtils.PushVolumeToSlicer(jacMagnitude, targetNode=outputVolume)
+
+        # Step 7: Display setup
+        if not outputVolume.GetDisplayNode():
+            outputVolume.CreateDefaultDisplayNodes()
+
+        displayNode = outputVolume.GetDisplayNode()
+        displayNode.AutoWindowLevelOff()
+        # displayNode.SetWindow(5.0)
+        # displayNode.SetLevel(2.5)
+        array = sitk.GetArrayFromImage(jacMagnitude)
+        minVal, maxVal = float(array.min()), float(array.max())
+        displayNode.SetWindow(maxVal - minVal)
+        displayNode.SetLevel((maxVal + minVal) / 2)
 
         colorNode = slicer.util.getNode("Inferno")
         if colorNode:
             displayNode.SetAndObserveColorNodeID(colorNode.GetID())
 
-        #Store in UI and in parameter node 
-        self.ui.displacementMagnitudeVolume.setCurrentNode(outputVolume)
-
-        #self.SetNodeReferenceID("displacementMagnitudeVolume", outputVolume.GetID())
-
-        #self._parameterNode().displacementMagnitudeVolume = outputVolume
-        #return outputVolume
-        logging.info(f"Displacement computation completed in {time.time() - startTime:.2f} s")
+        # Step 8: Store in UI and parameter node
+        #self.ui.jacobianMagnitudeVolume.setCurrentNode(outputVolume)
+        #self._parameterNode().SetNodeReferenceID("jacobianMagnitudeVolume", outputVolume.GetID())
 
         return outputVolume
 
-    # def torch_gradient3D(self,arr, dx, dy, dz, grad_divisor_x_gpu,grad_divisor_y_gpu,grad_divisor_z_gpu):
+
+
+    # def computeJacobianMagnitude(self,
+    #                              referenceVolume: vtkMRMLScalarVolumeNode,
+    #                              transformNode: vtkMRMLTransformNode
+    #                              ) -> vtkMRMLScalarVolumeNode:
+
+    #     import numpy as np
+    #     import vtk
+    #     import slicer
     #     import torch
-    #     arr = torch.squeeze(torch.nn.functional.pad(arr.unsqueeze(0).unsqueeze(0),(1,1,1,1,1,1),mode='replicate'))
-    #     gradx = torch.cat((arr[1:,:,:],arr[0,:,:].unsqueeze(0)),dim=0) - torch.cat((arr[-1,:,:].unsqueeze(0),arr[:-1,:,:]),dim=0)
-    #     grady = torch.cat((arr[:,1:,:],arr[:,0,:].unsqueeze(1)),dim=1) - torch.cat((arr[:,-1,:].unsqueeze(1),arr[:,:-1,:]),dim=1)
-    #     gradz = torch.cat((arr[:,:,1:],arr[:,:,0].unsqueeze(2)),dim=2) - torch.cat((arr[:,:,-1].unsqueeze(2),arr[:,:,:-1]),dim=2)
-    #     return gradx[1:-1,1:-1,1:-1]/dx/grad_divisor_x_gpu, grady[1:-1,1:-1,1:-1]/dy/grad_divisor_y_gpu, gradz[1:-1,1:-1,1:-1]/dz/grad_divisor_z_gpu
-
-
-    # def calculate_jacobian(self, phi0, phi1, phi2):
-    #     # add identity
-    #     import torch
-
-    #     phi0_=lddmm.X0+torch.tensor(phi0).to(lddmm.X0.device) #lddmm.X0 is the 1st dim meshgrid
-    #     phi1_=lddmm.X1+torch.tensor(phi1).to(lddmm.X0.device)
-    #     phi2_=lddmm.X2+torch.tensor(phi2).to(lddmm.X0.device)
-
-    #     # calculate gradients
-    #     phi0_0,phi0_1,phi0_2 = lddmm.torch_gradient(phi0_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x, lddmm.grad_divisor_y, lddmm.grad_divisor_z) # dx is the voxel dim, can set it = [1,1,1] if unsure
-    #     phi1_0,phi1_1,phi1_2 = lddmm.torch_gradient(phi1_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x ,lddmm.grad_divisor_y, lddmm.grad_divisor_z)
-    #     phi2_0,phi2_1,phi2_2 = lddmm.torch_gradient(phi2_, lddmm.dx[0], lddmm.dx[1], lddmm.dx[2],  lddmm.grad_divisor_x, lddmm.grad_divisor_y, lddmm.grad_divisor_z)
-
-    #     detjac = phi0_0*(phi1_1*phi2_2 - phi1_2*phi2_1)\
-    #             - phi0_1*(phi1_0*phi2_2 - phi1_2*phi2_0)\
-    #             + phi0_2*(phi1_0*phi2_1 - phi1_1*phi2_0)
-
-    #     return detjac
-
-
-
-    def computeJacobianMagnitude(self,
-                                 referenceVolume: vtkMRMLScalarVolumeNode,
-                                 transformNode: vtkMRMLTransformNode
-                                 ) -> vtkMRMLScalarVolumeNode:
-
-        import numpy as np
-        import vtk
-        import slicer
-        import torch
-        # Step 1: Prepare
-        imageData = referenceVolume.GetImageData()
-        if imageData is None:
-            raise RuntimeError("Reference volume has no image data")
-        dims = imageData.GetDimensions()
-        spacing = referenceVolume.GetSpacing()
-        origin = referenceVolume.GetOrigin()
+    #     # Step 1: Prepare
+    #     imageData = referenceVolume.GetImageData()
+    #     if imageData is None:
+    #         raise RuntimeError("Reference volume has no image data")
+    #     dims = imageData.GetDimensions()
+    #     spacing = referenceVolume.GetSpacing()
+    #     origin = referenceVolume.GetOrigin()
         
-        # Step 2: Create a meshgrid of voxel coordinates (in physical space)
-        X = np.arange(0, dims[0]) * spacing[0] + origin[0]
-        Y = np.arange(0, dims[1]) * spacing[1] + origin[1]
-        Z = np.arange(0, dims[2]) * spacing[2] + origin[2]
-        grid_z, grid_y, grid_x = np.meshgrid(Z, Y, X, indexing='ij')  # shape (Z, Y, X)
+    #     # Step 2: Create a meshgrid of voxel coordinates (in physical space)
+    #     X = np.arange(0, dims[0]) * spacing[0] + origin[0]
+    #     Y = np.arange(0, dims[1]) * spacing[1] + origin[1]
+    #     Z = np.arange(0, dims[2]) * spacing[2] + origin[2]
+    #     grid_z, grid_y, grid_x = np.meshgrid(Z, Y, X, indexing='ij')  # shape (Z, Y, X)
 
-        # Flatten coordinates for transformation
-        coords = np.stack([grid_x, grid_y, grid_z], axis=-1).reshape(-1, 3)
+    #     # Flatten coordinates for transformation
+    #     coords = np.stack([grid_x, grid_y, grid_z], axis=-1).reshape(-1, 3)
 
-        # Step 3: Transform all coordinates using the transformNode
-        transformToWorld = vtk.vtkGeneralTransform()
-        transformNode.GetTransformToWorld(transformToWorld)
+    #     # Step 3: Transform all coordinates using the transformNode
+    #     transformToWorld = vtk.vtkGeneralTransform()
+    #     transformNode.GetTransformToWorld(transformToWorld)
 
-        transformed_coords = np.zeros_like(coords)
-        for i in range(coords.shape[0]):
-            transformed_coords[i] = transformToWorld.TransformPoint(coords[i])
+    #     transformed_coords = np.zeros_like(coords)
+    #     for i in range(coords.shape[0]):
+    #         transformed_coords[i] = transformToWorld.TransformPoint(coords[i])
 
-        # Step 4: Compute displacement field phi = T(x) - x
-        displacement = transformed_coords - coords  # shape (N, 3)
-        phi = displacement.reshape(grid_x.shape + (3,))  # (Z, Y, X, 3)
-        phi = np.moveaxis(phi, -1, 0)  # shape (3, Z, Y, X)
+    #     # Step 4: Compute displacement field phi = T(x) - x
+    #     displacement = transformed_coords - coords  # shape (N, 3)
+    #     phi = displacement.reshape(grid_x.shape + (3,))  # (Z, Y, X, 3)
+    #     phi = np.moveaxis(phi, -1, 0)  # shape (3, Z, Y, X)
 
-        # Step 5: Convert to torch tensor
-        phi_torch = torch.tensor(phi, dtype=torch.float32).cuda()
+    #     # Step 5: Convert to torch tensor
+    #     phi_torch = torch.tensor(phi, dtype=torch.float32).cuda()
 
-        dx = torch.tensor(spacing, dtype=torch.float32).cuda()
-        grad_divisor = torch.tensor(2.0, dtype=torch.float32).cuda()  # central difference
+    #     dx = torch.tensor(spacing, dtype=torch.float32).cuda()
+    #     grad_divisor = torch.tensor(2.0, dtype=torch.float32).cuda()  # central difference
 
-        def torch_gradient(arr, dx, dy, dz):
-            arr = torch.nn.functional.pad(arr.unsqueeze(0).unsqueeze(0), (1, 1, 1, 1, 1, 1), mode='replicate').squeeze()
-            gradx = torch.cat((arr[1:,:,:],arr[0,:,:].unsqueeze(0)),dim=0) - torch.cat((arr[-1,:,:].unsqueeze(0),arr[:-1,:,:]),dim=0)
-            grady = torch.cat((arr[:,1:,:],arr[:,0,:].unsqueeze(1)),dim=1) - torch.cat((arr[:,-1,:].unsqueeze(1),arr[:,:-1,:]),dim=1)
-            gradz = torch.cat((arr[:,:,1:],arr[:,:,0].unsqueeze(2)),dim=2) - torch.cat((arr[:,:,-1].unsqueeze(2),arr[:,:,:-1]),dim=2)
-            return gradx[1:-1,1:-1,1:-1]/dx/grad_divisor, grady[1:-1,1:-1,1:-1]/dy/grad_divisor, gradz[1:-1,1:-1,1:-1]/dz/grad_divisor
+    #     def torch_gradient(arr, dx, dy, dz):
+    #         arr = torch.nn.functional.pad(arr.unsqueeze(0).unsqueeze(0), (1, 1, 1, 1, 1, 1), mode='replicate').squeeze()
+    #         gradx = torch.cat((arr[1:,:,:],arr[0,:,:].unsqueeze(0)),dim=0) - torch.cat((arr[-1,:,:].unsqueeze(0),arr[:-1,:,:]),dim=0)
+    #         grady = torch.cat((arr[:,1:,:],arr[:,0,:].unsqueeze(1)),dim=1) - torch.cat((arr[:,-1,:].unsqueeze(1),arr[:,:-1,:]),dim=1)
+    #         gradz = torch.cat((arr[:,:,1:],arr[:,:,0].unsqueeze(2)),dim=2) - torch.cat((arr[:,:,-1].unsqueeze(2),arr[:,:,:-1]),dim=2)
+    #         return gradx[1:-1,1:-1,1:-1]/dx/grad_divisor, grady[1:-1,1:-1,1:-1]/dy/grad_divisor, gradz[1:-1,1:-1,1:-1]/dz/grad_divisor
 
-        # Step 6: Add identity (reference grid)
-        X0 = torch.tensor(grid_x, dtype=torch.float32).cuda()
-        X1 = torch.tensor(grid_y, dtype=torch.float32).cuda()
-        X2 = torch.tensor(grid_z, dtype=torch.float32).cuda()
+    #     # Step 6: Add identity (reference grid)
+    #     X0 = torch.tensor(grid_x, dtype=torch.float32).cuda()
+    #     X1 = torch.tensor(grid_y, dtype=torch.float32).cuda()
+    #     X2 = torch.tensor(grid_z, dtype=torch.float32).cuda()
 
-        phi0 = X0 + phi_torch[0]
-        phi1 = X1 + phi_torch[1]
-        phi2 = X2 + phi_torch[2]
+    #     phi0 = X0 + phi_torch[0]
+    #     phi1 = X1 + phi_torch[1]
+    #     phi2 = X2 + phi_torch[2]
 
-        # Step 7: Compute gradients (Jacobian matrix entries)
-        phi0_0, phi0_1, phi0_2 = torch_gradient(phi0, dx[0], dx[1], dx[2])
-        phi1_0, phi1_1, phi1_2 = torch_gradient(phi1, dx[0], dx[1], dx[2])
-        phi2_0, phi2_1, phi2_2 = torch_gradient(phi2, dx[0], dx[1], dx[2])
+    #     # Step 7: Compute gradients (Jacobian matrix entries)
+    #     phi0_0, phi0_1, phi0_2 = torch_gradient(phi0, dx[0], dx[1], dx[2])
+    #     phi1_0, phi1_1, phi1_2 = torch_gradient(phi1, dx[0], dx[1], dx[2])
+    #     phi2_0, phi2_1, phi2_2 = torch_gradient(phi2, dx[0], dx[1], dx[2])
 
-        # Step 8: Jacobian determinant
-        detjac = phi0_0*(phi1_1*phi2_2 - phi1_2*phi2_1) \
-            - phi0_1*(phi1_0*phi2_2 - phi1_2*phi2_0) \
-            + phi0_2*(phi1_0*phi2_1 - phi1_1*phi2_0)
+    #     # Step 8: Jacobian determinant
+    #     detjac = phi0_0*(phi1_1*phi2_2 - phi1_2*phi2_1) \
+    #         - phi0_1*(phi1_0*phi2_2 - phi1_2*phi2_0) \
+    #         + phi0_2*(phi1_0*phi2_1 - phi1_1*phi2_0)
 
-        detjac = detjac.cpu().numpy()
+    #     detjac = detjac.cpu().numpy()
 
-        # Step 9: Convert Jacobian to vtkImageData for Slicer
-        detjac_vtk = vtk.vtkImageData()
-        detjac_vtk.SetDimensions([d - 2 for d in dims])  # due to gradient slicing
-        detjac_vtk.AllocateScalars(vtk.VTK_FLOAT, 1)
-        detjac_vtk.SetSpacing(spacing)
-        detjac_vtk.SetOrigin(origin)
-        detjac_vtk.Modified()
+    #     # Step 9: Convert Jacobian to vtkImageData for Slicer
+    #     detjac_vtk = vtk.vtkImageData()
+    #     detjac_vtk.SetDimensions([d - 2 for d in dims])  # due to gradient slicing
+    #     detjac_vtk.AllocateScalars(vtk.VTK_FLOAT, 1)
+    #     detjac_vtk.SetSpacing(spacing)
+    #     detjac_vtk.SetOrigin(origin)
+    #     detjac_vtk.Modified()
 
-        flat_jac = detjac.flatten()
-        for i in range(flat_jac.shape[0]):
-            detjac_vtk.GetPointData().GetScalars().SetTuple1(i, flat_jac[i])
+    #     flat_jac = detjac.flatten()
+    #     for i in range(flat_jac.shape[0]):
+    #         detjac_vtk.GetPointData().GetScalars().SetTuple1(i, flat_jac[i])
 
-        # Step 10: Create Slicer volume
-        volumesLogic = slicer.modules.volumes.logic()
-        outputVolume = volumesLogic.CloneVolume(slicer.mrmlScene, referenceVolume, referenceVolume.GetName() + "_jacobian")
-        outputVolume.SetAndObserveImageData(detjac_vtk)
-        outputVolume.CopyOrientation(referenceVolume.GetOrientation())
-        outputVolume.SetSpacing(referenceVolume.GetSpacing())
-        outputVolume.SetOrigin(referenceVolume.GetOrigin())
-        outputVolume.Modified()
+    #     # Step 10: Create Slicer volume
+    #     volumesLogic = slicer.modules.volumes.logic()
+    #     outputVolume = volumesLogic.CloneVolume(slicer.mrmlScene, referenceVolume, referenceVolume.GetName() + "_jacobian")
+    #     outputVolume.SetAndObserveImageData(detjac_vtk)
+    #     outputVolume.CopyOrientation(referenceVolume.GetOrientation())
+    #     outputVolume.SetSpacing(referenceVolume.GetSpacing())
+    #     outputVolume.SetOrigin(referenceVolume.GetOrigin())
+    #     outputVolume.Modified()
 
-        # enhance display with color map
-        if not outputVolume.GetDisplayNode():
-            slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
+    #     # enhance display with color map
+    #     if not outputVolume.GetDisplayNode():
+    #         slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
             
-        outputVolume.GetDisplayNode().SetAndObserveColorNodeID("vtkMRMLColorTableNodeRainbow")
+    #     outputVolume.GetDisplayNode().SetAndObserveColorNodeID("vtkMRMLColorTableNodeRainbow")
 
-        logging.info("Jacobian computation complete.")
+    #     logging.info("Jacobian computation complete.")
 
-        outputVolume.GetDisplayNode().AutoWindowLevelOff()
-        outputVolume.GetDisplayNode().SetWindow(10.0)
-        outputVolume.GetDisplayNode().SetLevel(5.0)
+    #     outputVolume.GetDisplayNode().AutoWindowLevelOff()
+    #     outputVolume.GetDisplayNode().SetWindow(10.0)
+    #     outputVolume.GetDisplayNode().SetLevel(5.0)
       
 
-        outputVolume.GetDisplayNode().SetThreshold(0.05, 10.0)
-        outputVolume.GetDisplayNode().SetApplyThreshold(True)
+    #     outputVolume.GetDisplayNode().SetThreshold(0.05, 10.0)
+    #     outputVolume.GetDisplayNode().SetApplyThreshold(True)
 
-        colorNode = slicer.util.getNode("Inferno")
-        if colorNode:
-            outputVolume.GetDisplayNode().SetAndObserveColorNodeID(colorNode.GetID())
+    #     colorNode = slicer.util.getNode("Inferno")
+    #     if colorNode:
+    #         outputVolume.GetDisplayNode().SetAndObserveColorNodeID(colorNode.GetID())
 
-        #Store in UI and in parameter node 
-        self.ui.jacobianMagnitudeVolume.setCurrentNode(outputVolume)
+    #     #Store in UI and in parameter node 
+    #     self.ui.jacobianMagnitudeVolume.setCurrentNode(outputVolume)
 
-        self._parameterNode().SetNodeReferenceID("jacobianMagnitudeVolume", outputVolume.GetID())
+    #     self._parameterNode().SetNodeReferenceID("jacobianMagnitudeVolume", outputVolume.GetID())
 
-        return outputVolume
+    #     return outputVolume
 
 
     def showNonZeroWireframe(self, foregroundVolume, state, reload=False, modelName="NonZeroWireframe"):
