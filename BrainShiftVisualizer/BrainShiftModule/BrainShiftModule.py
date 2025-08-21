@@ -73,7 +73,7 @@ class BrainShiftModuleParameterNode:
 
     referenceVolume: vtkMRMLScalarVolumeNode
     transformNode: vtkMRMLTransformNode
-    displacementMagnitudeVolume: vtkMRMLScalarVolumeNode
+    #displacementMagnitudeVolume: vtkMRMLScalarVolumeNode
     backgroundVolume: vtkMRMLScalarVolumeNode
 
 
@@ -114,7 +114,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # set the scene for each individual node widget
         self.ui.referenceVolume.setMRMLScene(slicer.mrmlScene)
         self.ui.transformNode.setMRMLScene(slicer.mrmlScene)
-        self.ui.displacementMagnitudeVolume.setMRMLScene(slicer.mrmlScene)
+        #self.ui.displacementMagnitudeVolume.setMRMLScene(slicer.mrmlScene)
         self.ui.backgroundVolume.setMRMLScene(slicer.mrmlScene)
         #self.ui.ConvertTagFCSVNode.setMRMLScene(slicer.mrmlScene)
 
@@ -126,9 +126,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.referenceVolume.addEnabled = False
         self.ui.referenceVolume.removeEnabled = False
 
-        self.ui.displacementMagnitudeVolume.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-        self.ui.displacementMagnitudeVolume.addEnabled = True  # can create new output volume
-        self.ui.displacementMagnitudeVolume.removeEnabled = True
+        # self.ui.displacementMagnitudeVolume.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+        # self.ui.displacementMagnitudeVolume.addEnabled = True  # can create new output volume
+        # self.ui.displacementMagnitudeVolume.removeEnabled = True
 
         self.ui.transformNode.nodeTypes = ["vtkMRMLTransformNode"]
         self.ui.transformNode.addEnabled = False
@@ -459,7 +459,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             
             logging.info(f"Reference Volume: {self._parameterNode.referenceVolume}")
             logging.info(f"Transform Node: {self._parameterNode.transformNode}")
-            logging.info(f"Displacement Volume: {self._parameterNode.displacementMagnitudeVolume}")
+            #logging.info(f"Displacement Volume: {self._parameterNode.displacementMagnitudeVolume}")
 
             # Create displacement field (vector volume)
             displacementVolume = self.logic.computeDisplacementMagnitude(
@@ -477,12 +477,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # self._parameterNode.displacementMagnitudeVolume = displacementVolume  # Save for access
 
 
-            slicer.util.setSliceViewerLayers(
-                # background=self._parameterNode.referenceVolume,
-                background=self._parameterNode.backgroundVolume,
-                foreground=self._parameterNode.displacementMagnitudeVolume
+            # slicer.util.setSliceViewerLayers(
+            #     # background=self._parameterNode.referenceVolume,
+            #     background=self._parameterNode.backgroundVolume,
+            #     foreground=#displacementVolume#self._parameterNode.displacementMagnitudeVolume
                                 
-            )
+            # )
             
             # TODO: Add this back in if we want to directly load the colour map 
             # colorNode = self.ui.colorMapSelector.currentNode()
@@ -537,6 +537,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state, reload=True)
         
+        # slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(selectedVolume)    
+
 
         # visualize it
         # slicer.util.setSliceViewerLayers(
@@ -577,12 +579,18 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         normalizedValue = self.ui.opacitySlider.value / 100
         internalDisplayNode.SetOpacity(normalizedValue)
+        
+        slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(persistentDisplayNode)
+
         # Do NOT set it as foreground of another volume to avoid cropping
         for sliceName in slicer.app.layoutManager().sliceViewNames():
             sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
             sliceComposite.SetBackgroundVolumeID(backgroundVolume.GetID())  # your US/reference
             sliceComposite.SetForegroundVolumeID(selectedVolume.GetID())    # displacement field
             sliceComposite.SetForegroundOpacity(normalizedValue)
+            # scalarBar = slicer.app.layoutManager().sliceWidget(sliceName).GetForegroundScalarBarActor()
+            # scalarBar.SetTitle("Displacement magnitude")
+            # scalarBar.SetNumberOfLabels(5)
 
         #slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
 
@@ -622,6 +630,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.thresholdSlider.setValues(minScalar, maxScalar)
             self.ui.thresholdMinSpinBox.setValue(defaultMinValue)
             self.ui.thresholdMaxSpinBox.setValue(maxScalar)
+
+
 
 
 
@@ -1089,7 +1099,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         #print("Step 6: Setting display properties for wireframe...")
         displayNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelDisplayNode")
 
-        slicer.mrmlScene.AddNode(displayNode)
+        #slicer.mrmlScene.AddNode(displayNode)
         newModelNode.SetAndObserveDisplayNodeID(displayNode.GetID())
         #print("Done: Created and linked display node.")
 
