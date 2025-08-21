@@ -184,7 +184,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
       # connect Jacobian determinant checkbox
         #self.ui.enableJacobianCheckbox.setChecked(False)  # start disabled
-        self.ui.enableJacobianToggle.connect('toggled(bool)', self.onToggleVolumeView)
+        #self.ui.enableJacobianToggle.connect('toggled(bool)', self.onToggleVolumeView)
 
         
         
@@ -473,50 +473,51 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 transformNode=self._parameterNode.transformNode
             )
             
-            self._parameterNode.jacobianMagnitudeVolume = jacobianVolume  # Save for access
-            self._parameterNode.displacementMagnitudeVolume = displacementVolume  # Save for access
+            # self._parameterNode.jacobianMagnitudeVolume = jacobianVolume  # Save for access
+            # self._parameterNode.displacementMagnitudeVolume = displacementVolume  # Save for access
 
 
-            slicer.util.setSliceViewerLayers(
-                # background=self._parameterNode.referenceVolume,
-                background=self._parameterNode.backgroundVolume,
-                foreground=self._parameterNode.displacementMagnitudeVolume
+            # slicer.util.setSliceViewerLayers(
+            #     # background=self._parameterNode.referenceVolume,
+            #     background=self._parameterNode.backgroundVolume,
+            #     foreground=#displacementVolume#self._parameterNode.displacementMagnitudeVolume
                                 
-            )
+            # )
             
-            # change to color thats selected
-            colorNode = self.ui.colorMapSelector.currentNode()
-            if colorNode and self._parameterNode.displacementMagnitudeVolume:
-                displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
-                if displayNode:
-                    displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            # TODO: Add this back in if we want to directly load the colour map 
+            # colorNode = self.ui.colorMapSelector.currentNode()
+            # if colorNode and self._parameterNode.displacementMagnitudeVolume:
+            #     print("In 490!!!")
+            #     displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
+            #     if displayNode:
+            #         displayNode.SetAndObserveColorNodeID(colorNode.GetID())
 
 
 
-    def onToggleVolumeView(self) -> None:
-        """Toggle between displacement and Jacobian volumes in slice viewer."""
+    # def onToggleVolumeView(self) -> None:
+    #     """Toggle between displacement and Jacobian volumes in slice viewer."""
 
-        #currentForeground = slicer.util.get
-        fgID = slicer.app.layoutManager().sliceWidget("Red").mrmlSliceCompositeNode().GetForegroundVolumeID()
+    #     #currentForeground = slicer.util.get
+    #     fgID = slicer.app.layoutManager().sliceWidget("Red").mrmlSliceCompositeNode().GetForegroundVolumeID()
 
-        print("id", fgID)
+    #     print("id", fgID)
 
-        # currentForeground = slicer.util.getNode(self._parameterNode.).GetID() \
-        #     if self._parameterNode.foregroundVolume else None
-        print("dispID", self._parameterNode.displacementMagnitudeVolume.GetID())
+    #     # currentForeground = slicer.util.getNode(self._parameterNode.).GetID() \
+    #     #     if self._parameterNode.foregroundVolume else None
+    #     print("dispID", self._parameterNode.displacementMagnitudeVolume.GetID())
 
-        dispID = self._parameterNode.displacementMagnitudeVolume.getParameterNode()
-        jacID = self._parameterNode.jacobianMagnitudeVolume.getParameterNode()
+    #     dispID = self._parameterNode.displacementMagnitudeVolume.getParameterNode()
+    #     jacID = self._parameterNode.jacobianMagnitudeVolume.getParameterNode()
 
 
-        if fgID == dispID:
-            slicer.util.setSliceViewerLayers(foreground=self._parameterNode.jacobianMagnitudeVolume)
-            self._parameterNode.foregroundVolume = self._parameterNode.jacobianMagnitudeVolume
-            logging.info("Switched to Jacobian magnitude volume.")
-        else:
-            slicer.util.setSliceViewerLayers(foreground=self._parameterNode.displacementMagnitudeVolume)
-            self._parameterNode.foregroundVolume = self._parameterNode.displacementMagnitudeVolume
-            logging.info("Switched to displacement magnitude volume.")
+    #     if fgID == dispID:
+    #         slicer.util.setSliceViewerLayers(foreground=self._parameterNode.jacobianMagnitudeVolume)
+    #         self._parameterNode.foregroundVolume = self._parameterNode.jacobianMagnitudeVolume
+    #         logging.info("Switched to Jacobian magnitude volume.")
+    #     else:
+    #         slicer.util.setSliceViewerLayers(foreground=self._parameterNode.displacementMagnitudeVolume)
+    #         self._parameterNode.foregroundVolume = self._parameterNode.displacementMagnitudeVolume
+    #         logging.info("Switched to displacement magnitude volume.")
 
 
     def onLoadDisplacementVolume(self) -> None:
@@ -527,75 +528,111 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         '''
         #selectedVolume = self.ui.existingDisplacementVolumeSelector.currentNode()
         selectedVolume = self.ui.loadedTransformVolume.currentNode()
-        clonedDisplacementVolume = slicer.mrmlScene.CopyNode(selectedVolume)
 
         usVolume = self.ui.referenceVolume.currentNode()
-        
-        #print(f"Displacement Volume: {self._parameterNode.displacementMagnitudeVolume}")
-
-        # referenceVolume = self._parameterNode.referenceVolume
+       
         backgroundVolume = self._parameterNode.backgroundVolume
         
         state = self.ui.enableUsBorderDisplay.checkState()
 
         self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state, reload=True)
         
-        # # # Compute jacobian magnitude field
-        # jacobianVolume = self.logic.computeJacobianMagnitude(
-        #     referenceVolume=self._parameterNode.referenceVolume,
-        #     transformNode=self._parameterNode.transformNode
-        # )
+        # slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(selectedVolume)    
 
-        #self._parameterNode.jacobianMagnitudeVolume = jacobianVolume  # Save for access
-
-
-        #IJZF If there's a change to enableJacobian, trigger an event
-        # if enableJacobian:
-        #     selectedVolume = self.ui.loadedTransformVolume.currentNode()
 
         # visualize it
-        slicer.util.setSliceViewerLayers(
-            background=backgroundVolume,
-            foreground=selectedVolume
-        )
+        # slicer.util.setSliceViewerLayers(
+        #     background=backgroundVolume,
+        #     foreground=selectedVolume
+        # )
         
         self.onLoadExpertLabelsClicked()
+        
+        persistentDisplayNode = selectedVolume.GetDisplayNode()
+        # newDisplayNode = slicer.mrmlScene.AddNewNodeByClass(persistentDisplayNode.GetClassName())
+        # newDisplayNode.Copy(persistentDisplayNode)
+        # #newDisplayNode = originalDisplayNode
 
+        # Attach the new display node to the same volume
+        #selectedVolume.RemoveAllDisplayNodeIDs()
+
+        internalDisplayNode = slicer.mrmlScene.AddNewNodeByClass(persistentDisplayNode.GetClassName())
+        #internalDisplayNode.Copy(persistentDisplayNode)
+        internalDisplayNode = persistentDisplayNode
+        selectedVolume.AddAndObserveDisplayNodeID(internalDisplayNode.GetID())
+
+        #persistentDisplayNode.AddAndObserveDisplayNodeID(newDisplayNode.GetID())
+        # print(selectedVolume.GetDisplayNode())
+        # print(selectedVolume.GetClassName())
+
+        numDisplayNodes = selectedVolume.GetNumberOfDisplayNodes()      
+        print(f"Number of display nodes: {numDisplayNodes}")
+        print("Update 1")
         # change to selected color
         colorNode = self.ui.colorMapSelector.currentNode()
         if colorNode:
-            displayNode = selectedVolume.GetDisplayNode()
-            displayNode.SetAndObserveColorNodeID(colorNode.GetID())
-            displayNode.Modified()
+            
+            internalDisplayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            #internalDisplayNode.Modified()
+            #displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            #displayNode.Modified() #this line is directly modifying the volume - problem if incorrect volume is loaded in
 
         normalizedValue = self.ui.opacitySlider.value / 100
-        slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
+        internalDisplayNode.SetOpacity(normalizedValue)
+        
+        slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(persistentDisplayNode)
+
+        # Do NOT set it as foreground of another volume to avoid cropping
+        for sliceName in slicer.app.layoutManager().sliceViewNames():
+            sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
+            sliceComposite.SetBackgroundVolumeID(backgroundVolume.GetID())  # your US/reference
+            sliceComposite.SetForegroundVolumeID(selectedVolume.GetID())    # displacement field
+            sliceComposite.SetForegroundOpacity(normalizedValue)
+            # scalarBar = slicer.app.layoutManager().sliceWidget(sliceName).GetForegroundScalarBarActor()
+            # scalarBar.SetTitle("Displacement magnitude")
+            # scalarBar.SetNumberOfLabels(5)
+
+        #slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
 
         # set max and min of threshold slider
         imageData = selectedVolume.GetImageData()
         if imageData:
             scalarRange = imageData.GetScalarRange()
-            defaultMinValue = 0.01
-            minScalar, maxScalar = 0, scalarRange[1]
+            print(scalarRange)
+            #Such that the default min will always be in the first step (always have 20 steps + user can specify specific values in the windows)
+            defaultMinValue = float(round(scalarRange[0] + (scalarRange[1] - scalarRange[0])*0.05, 2))
+            print(defaultMinValue)
+            minScalar, maxScalar = scalarRange[0], scalarRange[1]
 
             print(f"Scalar range: {scalarRange}, min: {minScalar}, max: {maxScalar}")
             # set threshold slider limits based on max and min displacement values
-            #self.ui.thresholdSlider.setMinimum(minScalar)
-            #self.ui.thresholdSlider.setMaximum(maxScalar)
+            
             self.ui.thresholdSlider.minimum = minScalar
             self.ui.thresholdSlider.maximum = maxScalar
             self.ui.thresholdSlider.setMinimumValue(minScalar)
             self.ui.thresholdSlider.setMaximumValue(maxScalar)
-            self.ui.thresholdSlider.setValues(defaultMinValue, maxScalar)
-
+            
+            
             self.ui.thresholdMinSpinBox.setMinimum(minScalar)
             self.ui.thresholdMinSpinBox.setMaximum(maxScalar)
-            self.ui.thresholdMinSpinBox.setValue(defaultMinValue)
 
             self.ui.thresholdMaxSpinBox.setMinimum(minScalar)
             self.ui.thresholdMaxSpinBox.setMaximum(maxScalar)
+
+            step = (maxScalar - minScalar) / 20 #always have 20 steps
+
+            self.ui.thresholdSlider.singleStep = step
+            self.ui.thresholdMinSpinBox.singleStep = step
+            self.ui.thresholdMaxSpinBox.singleStep = step
+
+
+            #Always set the values after setting the mins/ maxs to avoid caching issues
+            self.ui.thresholdSlider.setValues(minScalar, maxScalar)
+            self.ui.thresholdMinSpinBox.setValue(defaultMinValue)
             self.ui.thresholdMaxSpinBox.setValue(maxScalar)
-        
+
+
+
 
 
 
@@ -656,41 +693,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.crosshairObserverTag = None
 
 
-    # def onToggleJacobianCheckbox(self, enabled: bool) -> None:
-    #     print("on Jacobian Display")
-    #     if enabled:
-          
-    
-    #         with slicer.util.tryWithErrorDisplay(_("Failed to compute voxel-wise displacement."), waitCursor=True):
-    #             logging.info(f"Reference Volume: {self._parameterNode.referenceVolume}")
-    #             logging.info(f"Transform Node: {self._parameterNode.transformNode}")
-    #             logging.info(f"Displacement Volume: {self._parameterNode.displacementMagnitudeVolume}")
-
-
-    #         # Create magnitude of Jacobian determinant
-    #         self.logic.computeJacobianDeterminant(
-    #             referenceVolume=self._parameterNode.referenceVolume,
-    #             transformNode=self._parameterNode.transformNode
-    #         )
-            
-    #         slicer.util.setSliceViewerLayers(
-    #             background=self._parameterNode.backgroundVolume,
-    #             foreground=self._parameterNode.displacementMagnitudeVolume
-                                
-    #         )
-            
-    #         # change to color thats selected
-    #         colorNode = self.ui.colorMapSelector.currentNode()
-    #         if colorNode and self._parameterNode.displacementMagnitudeVolume:
-    #             displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
-    #             if displayNode:
-    #                 displayNode.SetAndObserveColorNodeID(colorNode.GetID())
-            
-    #         state = self.ui.enableUsBorderDisplay.checkState()
-    #         self.logic.showNonZeroWireframe(foregroundVolume=self._parameterNode.transformNode, state=state, reload=True)
-            
-    #     else:
-    #         self.onLoadDisplacementVolume() #Reload the other colour map if not clicked
 
 
 
@@ -827,6 +829,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         
         logging.info(f"Created {len(points1)} landmarks in each set.")
         return True
+    
 
     def read_tag_file(self, filepath):
         import numpy as np
@@ -853,6 +856,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
             logging.error(f"Failed to read tag file: {e}")
             return None, None
         return np.array(source_points), np.array(target_points)
+    
 
 
     def computeDisplacementMagnitude(self,
@@ -874,7 +878,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         
         volumesLogic = slicer.modules.volumes.logic()
         
-        outputVolume = volumesLogic.CloneVolume(slicer.mrmlScene, referenceVolume, referenceVolume.GetName() + "_magnitude")
+        # outputVolume = volumesLogic.CloneVolume(slicer.mrmlScene, referenceVolume, referenceVolume.GetName() + "_magnitude")
         
         # Get reference image as SimpleITK image
         refImage = sitkUtils.PullVolumeFromSlicer(referenceVolume)
@@ -937,118 +941,6 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         return outputVolume
 
 
-    # def computeDisplacementMagnitude(self,
-    #                              referenceVolume: vtkMRMLScalarVolumeNode,
-    #                              transformNode: vtkMRMLTransformNode
-    #                              ) -> vtkMRMLScalarVolumeNode:
-    #     """
-    #     Run the processing algorithm.
-    #     Can be used without GUI widget.
-
-    #     The displacementMagnitudeVolume doesn't get created until this point
-    #     """
-    #     print("in computeDisplacementMagnitude")
-    #     if not referenceVolume:
-    #         raise ValueError("Input volume is invalid")
-
-    #     if not transformNode:
-    #         raise ValueError("output volume is invalid")
-
-    #     import time
-    #     import numpy as np 
-    #     import vtk
-    #     from vtk.util import numpy_support
-    #     from vtk.util.numpy_support import vtk_to_numpy, numpy_to_vtk
-        
-    #     volumesLogic = slicer.modules.volumes.logic()
-    #     outputVolume = volumesLogic.CloneVolume(slicer.mrmlScene, referenceVolume, referenceVolume.GetName() + "_magnitude")
-
-    #     #outputVolume.CopyContent(referenceVolume)  # deep copy by default
-    #     #outputVolume.CreateDefaultDisplayNodes()
-
-    #     startTime = time.time()
-    #     logging.info("Displacement computation started")
-
-    #     # fill this in
-
-    #     imageData = referenceVolume.GetImageData()
-    #     logging.info(f"outputVolume check: {imageData.GetExtent()}")
-
-    #     print("outputVolume image data: ", imageData)
-    #     if imageData is None:
-    #         logging.error("Reference volume has no image data")
-    #         return
-    #     dims = imageData.GetDimensions()
-    #     logging.info(f"Reference volume dims: {dims}")
-
-
-    #     spacing = referenceVolume.GetSpacing()
-    #     origin = referenceVolume.GetOrigin()
-    #     logging.info(f"Reference origin: {origin}")
-
-    #     # Set up transform
-    #     transformToWorld = vtk.vtkGeneralTransform()
-    #     transformNode.GetTransformToWorld(transformToWorld)
-
-    #     # prepare output image
-    #     magnitudeImage = vtk.vtkImageData()
-    #     magnitudeImage.SetDimensions(dims)
-    #     magnitudeImage.AllocateScalars(vtk.VTK_FLOAT, 1)
-    #     magnitudeImage.SetExtent(imageData.GetExtent())
-
-
-    #     # iterate over each voxel in reference image
-    #     for z in range(dims[2]):
-    #         for y in range(dims[1]):
-    #             for x in range(dims[0]):
-    #                 # Voxel coordinate in RAS
-    #                 ras = [origin[0] + x * spacing[0],
-    #                     origin[1] + y * spacing[1],
-    #                     origin[2] + z * spacing[2]]
-                    
-    #                 transformedPoint = transformToWorld.TransformPoint(ras)
-    #                 displacement = np.array(transformedPoint) - np.array(ras)
-    #                 magnitude = np.linalg.norm(displacement)
-    #                 magnitudeImage.SetScalarComponentFromFloat(x, y, z, 0, magnitude)
-
-    #     outputVolume.SetAndObserveImageData(magnitudeImage)
-    #     outputVolume.CopyOrientation(referenceVolume)
-    #     outputVolume.SetSpacing(referenceVolume.GetSpacing())
-    #     outputVolume.SetOrigin(referenceVolume.GetOrigin())
-    #     outputVolume.Modified()
-        
-    #     # until here
-
-    #     num_unique, unique_vals = self.countUniqueValues(outputVolume)
-    #     print(f"Unique values count: {num_unique}")
-    #     print(f"Unique values count: {num_unique}")
-
-    #     # enhance display with color map
-    #     if not outputVolume.GetDisplayNode():
-    #         slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
-    #     displayNode = outputVolume.GetDisplayNode()
-    #     displayNode.AutoWindowLevelOff()
-    #     displayNode.SetWindow(10.0)
-    #     displayNode.SetLevel(5.0)
-      
-
-    #     displayNode.SetThreshold(0.05, 10.0)
-    #     displayNode.SetApplyThreshold(True)
-
-    #     colorNode = slicer.util.getNode("Inferno")
-    #     if colorNode:
-    #         displayNode.SetAndObserveColorNodeID(colorNode.GetID())
-
-    #     #Store in UI and in parameter node 
-    #     #self.ui.displacementMagnitudeVolume.setCurrentNode(outputVolume)
-
-    #     #self.SetNodeReferenceID("displacementMagnitudeVolume", outputVolume.GetID())
-
-    #     #self._parameterNode().displacementMagnitudeVolume = outputVolume
-    #     #return outputVolume
-    #     logging.info(f"Displacement computation completed in {time.time() - startTime:.2f} s")
-
-    #     return outputVolume
 
     def computeJacobianMagnitude(self,
                                 referenceVolume: vtkMRMLScalarVolumeNode,
@@ -1060,24 +952,12 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         import sitkUtils
         import numpy as np
 
-        # Step 1: Get reference image as sitk
         refImage = sitkUtils.PullVolumeFromSlicer(referenceVolume)
 
-        # Step 2: Convert transformNode (vtkMRMLBSplineTransformNode) to sitk.Transform
-        # vtk_transform = vtk.vtkGeneralTransform()
-        # transformNode.GetTransformToWorld(vtk_transform)
-        # sitk_transform = sitk.Transform(3, sitk.sitkBSpline)
-        # sitk_transform.SetFixedParameters(vtk_transform.GetTransform().GetParameters())
         
-        # sitk_transform = sitkUtils.PullTransformFromSlicer(transformNode)
         itkTx = sitk.ReadTransform(transformNode.GetStorageNode().GetFileName())
 
-        # Step 3: Create displacement field from transform
-        # dispFilter = sitk.TransformToDisplacementFieldFilter()
-        # dispFilter.SetReferenceImage(reference_sitk)
-        # displacementField = dispFilter.Execute(sitk_transform)
-
-            # Convert transform to displacement field in reference grid
+        # Convert transform to displacement field in reference grid
         displacementField = sitk.TransformToDisplacementField(
             itkTx,
             sitk.sitkVectorFloat64,
@@ -1124,127 +1004,6 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         return outputVolume
 
 
-
-    # def computeJacobianMagnitude(self,
-    #                              referenceVolume: vtkMRMLScalarVolumeNode,
-    #                              transformNode: vtkMRMLTransformNode
-    #                              ) -> vtkMRMLScalarVolumeNode:
-
-    #     import numpy as np
-    #     import vtk
-    #     import slicer
-    #     import torch
-    #     # Step 1: Prepare
-    #     imageData = referenceVolume.GetImageData()
-    #     if imageData is None:
-    #         raise RuntimeError("Reference volume has no image data")
-    #     dims = imageData.GetDimensions()
-    #     spacing = referenceVolume.GetSpacing()
-    #     origin = referenceVolume.GetOrigin()
-        
-    #     # Step 2: Create a meshgrid of voxel coordinates (in physical space)
-    #     X = np.arange(0, dims[0]) * spacing[0] + origin[0]
-    #     Y = np.arange(0, dims[1]) * spacing[1] + origin[1]
-    #     Z = np.arange(0, dims[2]) * spacing[2] + origin[2]
-    #     grid_z, grid_y, grid_x = np.meshgrid(Z, Y, X, indexing='ij')  # shape (Z, Y, X)
-
-    #     # Flatten coordinates for transformation
-    #     coords = np.stack([grid_x, grid_y, grid_z], axis=-1).reshape(-1, 3)
-
-    #     # Step 3: Transform all coordinates using the transformNode
-    #     transformToWorld = vtk.vtkGeneralTransform()
-    #     transformNode.GetTransformToWorld(transformToWorld)
-
-    #     transformed_coords = np.zeros_like(coords)
-    #     for i in range(coords.shape[0]):
-    #         transformed_coords[i] = transformToWorld.TransformPoint(coords[i])
-
-    #     # Step 4: Compute displacement field phi = T(x) - x
-    #     displacement = transformed_coords - coords  # shape (N, 3)
-    #     phi = displacement.reshape(grid_x.shape + (3,))  # (Z, Y, X, 3)
-    #     phi = np.moveaxis(phi, -1, 0)  # shape (3, Z, Y, X)
-
-    #     # Step 5: Convert to torch tensor
-    #     phi_torch = torch.tensor(phi, dtype=torch.float32).cuda()
-
-    #     dx = torch.tensor(spacing, dtype=torch.float32).cuda()
-    #     grad_divisor = torch.tensor(2.0, dtype=torch.float32).cuda()  # central difference
-
-    #     def torch_gradient(arr, dx, dy, dz):
-    #         arr = torch.nn.functional.pad(arr.unsqueeze(0).unsqueeze(0), (1, 1, 1, 1, 1, 1), mode='replicate').squeeze()
-    #         gradx = torch.cat((arr[1:,:,:],arr[0,:,:].unsqueeze(0)),dim=0) - torch.cat((arr[-1,:,:].unsqueeze(0),arr[:-1,:,:]),dim=0)
-    #         grady = torch.cat((arr[:,1:,:],arr[:,0,:].unsqueeze(1)),dim=1) - torch.cat((arr[:,-1,:].unsqueeze(1),arr[:,:-1,:]),dim=1)
-    #         gradz = torch.cat((arr[:,:,1:],arr[:,:,0].unsqueeze(2)),dim=2) - torch.cat((arr[:,:,-1].unsqueeze(2),arr[:,:,:-1]),dim=2)
-    #         return gradx[1:-1,1:-1,1:-1]/dx/grad_divisor, grady[1:-1,1:-1,1:-1]/dy/grad_divisor, gradz[1:-1,1:-1,1:-1]/dz/grad_divisor
-
-    #     # Step 6: Add identity (reference grid)
-    #     X0 = torch.tensor(grid_x, dtype=torch.float32).cuda()
-    #     X1 = torch.tensor(grid_y, dtype=torch.float32).cuda()
-    #     X2 = torch.tensor(grid_z, dtype=torch.float32).cuda()
-
-    #     phi0 = X0 + phi_torch[0]
-    #     phi1 = X1 + phi_torch[1]
-    #     phi2 = X2 + phi_torch[2]
-
-    #     # Step 7: Compute gradients (Jacobian matrix entries)
-    #     phi0_0, phi0_1, phi0_2 = torch_gradient(phi0, dx[0], dx[1], dx[2])
-    #     phi1_0, phi1_1, phi1_2 = torch_gradient(phi1, dx[0], dx[1], dx[2])
-    #     phi2_0, phi2_1, phi2_2 = torch_gradient(phi2, dx[0], dx[1], dx[2])
-
-    #     # Step 8: Jacobian determinant
-    #     detjac = phi0_0*(phi1_1*phi2_2 - phi1_2*phi2_1) \
-    #         - phi0_1*(phi1_0*phi2_2 - phi1_2*phi2_0) \
-    #         + phi0_2*(phi1_0*phi2_1 - phi1_1*phi2_0)
-
-    #     detjac = detjac.cpu().numpy()
-
-    #     # Step 9: Convert Jacobian to vtkImageData for Slicer
-    #     detjac_vtk = vtk.vtkImageData()
-    #     detjac_vtk.SetDimensions([d - 2 for d in dims])  # due to gradient slicing
-    #     detjac_vtk.AllocateScalars(vtk.VTK_FLOAT, 1)
-    #     detjac_vtk.SetSpacing(spacing)
-    #     detjac_vtk.SetOrigin(origin)
-    #     detjac_vtk.Modified()
-
-    #     flat_jac = detjac.flatten()
-    #     for i in range(flat_jac.shape[0]):
-    #         detjac_vtk.GetPointData().GetScalars().SetTuple1(i, flat_jac[i])
-
-    #     # Step 10: Create Slicer volume
-    #     volumesLogic = slicer.modules.volumes.logic()
-    #     outputVolume = volumesLogic.CloneVolume(slicer.mrmlScene, referenceVolume, referenceVolume.GetName() + "_jacobian")
-    #     outputVolume.SetAndObserveImageData(detjac_vtk)
-    #     outputVolume.CopyOrientation(referenceVolume.GetOrientation())
-    #     outputVolume.SetSpacing(referenceVolume.GetSpacing())
-    #     outputVolume.SetOrigin(referenceVolume.GetOrigin())
-    #     outputVolume.Modified()
-
-    #     # enhance display with color map
-    #     if not outputVolume.GetDisplayNode():
-    #         slicer.modules.volumes.logic().CreateDefaultDisplayNodes(outputVolume)
-            
-    #     outputVolume.GetDisplayNode().SetAndObserveColorNodeID("vtkMRMLColorTableNodeRainbow")
-
-    #     logging.info("Jacobian computation complete.")
-
-    #     outputVolume.GetDisplayNode().AutoWindowLevelOff()
-    #     outputVolume.GetDisplayNode().SetWindow(10.0)
-    #     outputVolume.GetDisplayNode().SetLevel(5.0)
-      
-
-    #     outputVolume.GetDisplayNode().SetThreshold(0.05, 10.0)
-    #     outputVolume.GetDisplayNode().SetApplyThreshold(True)
-
-    #     colorNode = slicer.util.getNode("Inferno")
-    #     if colorNode:
-    #         outputVolume.GetDisplayNode().SetAndObserveColorNodeID(colorNode.GetID())
-
-    #     #Store in UI and in parameter node 
-    #     self.ui.jacobianMagnitudeVolume.setCurrentNode(outputVolume)
-
-    #     self._parameterNode().SetNodeReferenceID("jacobianMagnitudeVolume", outputVolume.GetID())
-
-    #     return outputVolume
 
 
     def showNonZeroWireframe(self, foregroundVolume, state, reload=False, modelName="NonZeroWireframe"):
@@ -1339,7 +1098,8 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         # Step 6: Set wireframe-only display
         #print("Step 6: Setting display properties for wireframe...")
         displayNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelDisplayNode")
-        slicer.mrmlScene.AddNode(displayNode)
+
+        #slicer.mrmlScene.AddNode(displayNode)
         newModelNode.SetAndObserveDisplayNodeID(displayNode.GetID())
         #print("Done: Created and linked display node.")
 
