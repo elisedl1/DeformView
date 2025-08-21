@@ -73,7 +73,7 @@ class BrainShiftModuleParameterNode:
 
     referenceVolume: vtkMRMLScalarVolumeNode
     transformNode: vtkMRMLTransformNode
-    #displacementMagnitudeVolume: vtkMRMLScalarVolumeNode
+    displacementMagnitudeVolume: vtkMRMLScalarVolumeNode
     backgroundVolume: vtkMRMLScalarVolumeNode
 
 
@@ -114,7 +114,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # set the scene for each individual node widget
         self.ui.referenceVolume.setMRMLScene(slicer.mrmlScene)
         self.ui.transformNode.setMRMLScene(slicer.mrmlScene)
-        #self.ui.displacementMagnitudeVolume.setMRMLScene(slicer.mrmlScene)
+        self.ui.displacementMagnitudeVolume.setMRMLScene(slicer.mrmlScene)
         self.ui.backgroundVolume.setMRMLScene(slicer.mrmlScene)
         #self.ui.ConvertTagFCSVNode.setMRMLScene(slicer.mrmlScene)
 
@@ -126,9 +126,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.referenceVolume.addEnabled = False
         self.ui.referenceVolume.removeEnabled = False
 
-        # self.ui.displacementMagnitudeVolume.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-        # self.ui.displacementMagnitudeVolume.addEnabled = True  # can create new output volume
-        # self.ui.displacementMagnitudeVolume.removeEnabled = True
+        self.ui.displacementMagnitudeVolume.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+        self.ui.displacementMagnitudeVolume.addEnabled = True  # can create new output volume
+        self.ui.displacementMagnitudeVolume.removeEnabled = True
 
         self.ui.transformNode.nodeTypes = ["vtkMRMLTransformNode"]
         self.ui.transformNode.addEnabled = False
@@ -459,7 +459,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             
             logging.info(f"Reference Volume: {self._parameterNode.referenceVolume}")
             logging.info(f"Transform Node: {self._parameterNode.transformNode}")
-            #logging.info(f"Displacement Volume: {self._parameterNode.displacementMagnitudeVolume}")
+            logging.info(f"Displacement Volume: {self._parameterNode.displacementMagnitudeVolume}")
 
             # Create displacement field (vector volume)
             displacementVolume = self.logic.computeDisplacementMagnitude(
