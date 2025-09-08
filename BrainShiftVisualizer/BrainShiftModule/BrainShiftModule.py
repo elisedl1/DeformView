@@ -145,12 +145,17 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.loadDisplacementVolumeButton.connect("clicked(bool)", self.onLoadDisplacementVolume)
 
         # color selector
+             
+        jacobianColorNode = self.createJacobianColorNode()
+
         self.ui.colorMapSelector.setMRMLScene(slicer.mrmlScene)
         self.ui.colorMapSelector.setMRMLScene(slicer.mrmlScene)
         self.ui.colorMapSelector.nodeTypes = [
+            f"{jacobianColorNode}",
             "vtkMRMLColorTableNode",
             "vtkMRMLProceduralColorNode",
             "vtkMRMLPETColorNode"
+            
         ]
 
 
@@ -252,6 +257,43 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         state = self.ui.enableUsBorderDisplay.checkState() 
     
         self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state)
+    
+    
+
+    def createJacobianColorNode(self):
+        # Check if node already exists
+        # existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
+        # if existingNode:
+        #     print("JacobianMap already exists, reusing.")
+        #     return existingNode
+
+        # Create a new color node
+
+        # if not slicer.vtkMRMLProceduralColorNode().Get
+        colorNode = slicer.vtkMRMLProceduralColorNode()
+        colorNode.SetName("JacobianMap")
+        slicer.mrmlScene.AddNode(colorNode)
+        
+        # Metadata
+        colorNode.SetAttribute("Category", "Jacobian")
+        colorNode.SetAttribute("Type", "UserDefined")
+        colorNode.SetDescription("Blue for <1 (compression), Red for >1 (expansion)")
+
+        # Define custom transfer function
+        ctf = colorNode.GetColorTransferFunction()
+        ctf.RemoveAllPoints()
+        
+        # Stronger, deeper colors
+        ctf.AddRGBPoint(0.0, 0.0, 0.0, 0.6)   # deep blue at 0
+        ctf.AddRGBPoint(0.999, 0.0, 0.0, 1.0) # strong blue just below 1
+        ctf.AddRGBPoint(1.0, 1.0, 1.0, 1.0)   # neutral white at 1
+        ctf.AddRGBPoint(1.001, 1.0, 0.0, 0.0) # strong red just above 1
+        ctf.AddRGBPoint(2.0, 0.6, 0.0, 0.0)   # deep red at 2
+        
+        colorNode.Modified()
+        print("Created new JacobianMap node")
+        return colorNode
+
 
 
 
@@ -356,7 +398,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             #print(f"New fiducial node added: {newNode.GetName()}")
         self.updateLandmarkSelectorComboBox()
     
-    #IJZF
+
     def updateLandmarkSelectorComboBox(self):
         '''
         Tracks which files to add to the selection box for the available landmarks
@@ -971,14 +1013,14 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         jacDet = sitk.DisplacementFieldJacobianDeterminant(displacementField)
 
         # Step 5: Take magnitude (absolute value)
-        jacMagnitude = sitk.Abs(jacDet)
+        #jacMagnitude = sitk.Abs(jacDet)
 
         # Step 6: Push result back into Slicer
         outputVolume = slicer.mrmlScene.AddNewNodeByClass(
             "vtkMRMLScalarVolumeNode",
             referenceVolume.GetName() + "_jacobianMagnitude"
         )
-        sitkUtils.PushVolumeToSlicer(jacMagnitude, targetNode=outputVolume)
+        sitkUtils.PushVolumeToSlicer(jacDet, targetNode=outputVolume)
 
         # Step 7: Display setup
         if not outputVolume.GetDisplayNode():
@@ -988,7 +1030,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         displayNode.AutoWindowLevelOff()
         # displayNode.SetWindow(5.0)
         # displayNode.SetLevel(2.5)
-        array = sitk.GetArrayFromImage(jacMagnitude)
+        array = sitk.GetArrayFromImage(jacDet)
         minVal, maxVal = float(array.min()), float(array.max())
         displayNode.SetWindow(maxVal - minVal)
         displayNode.SetLevel((maxVal + minVal) / 2)
