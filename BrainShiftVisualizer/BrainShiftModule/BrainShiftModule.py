@@ -548,7 +548,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """Run processing when user clicks 'Compute Mapping' button.
         
         """
-        print("in onApply")
+        #print("in onApply")
         with slicer.util.tryWithErrorDisplay(_("Failed to compute voxel-wise displacement."), waitCursor=True):
             
             logging.info(f"Reference Volume: {self._parameterNode.referenceVolume}")
