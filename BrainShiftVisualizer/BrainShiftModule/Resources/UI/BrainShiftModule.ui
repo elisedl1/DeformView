@@ -184,6 +184,9 @@
      <property name="hideChildNodeTypes">
       <stringlist notr="true"/>
      </property>
+     <property name="noneEnabled">
+      <bool>true</bool>
+     </property>
      <property name="interactionNodeSingletonTag">
       <string notr="true">Singleton</string>
      </property>
@@ -284,17 +287,7 @@
       <string>Display US border</string>
      </property>
      <property name="checked">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="39" column="0">
-    <widget class="QCheckBox" name="displayLandmarks">
-     <property name="layoutDirection">
-      <enum>Qt::RightToLeft</enum>
-     </property>
-     <property name="text">
-      <string>Display Landmarks</string>
+      <bool>false</bool>
      </property>
     </widget>
    </item>
@@ -420,13 +413,13 @@
      </property>
     </spacer>
    </item>
-   <item row="38" column="1">
-    <widget class="QCheckBox" name="enableJacobianToggle">
-     <property name="toolTip">
-      <string>View Jacobian </string>
+   <item row="37" column="1">
+    <widget class="QCheckBox" name="displayLandmarks">
+     <property name="layoutDirection">
+      <enum>Qt::RightToLeft</enum>
      </property>
      <property name="text">
-      <string>Enable Magnitude of Jacobian Determinant Visualization</string>
+      <string>Display Landmarks</string>
      </property>
     </widget>
    </item>
