@@ -325,31 +325,6 @@
      </property>
     </widget>
    </item>
-   <item row="43" column="1">
-    <widget class="QSlider" name="opacitySlider">
-     <property name="whatsThis">
-      <string>Opacity slider</string>
-     </property>
-     <property name="accessibleName">
-      <string>Opacity slider</string>
-     </property>
-     <property name="accessibleDescription">
-      <string>this slider adjusts the opacity of the mri volume</string>
-     </property>
-     <property name="maximum">
-      <number>100</number>
-     </property>
-     <property name="value">
-      <number>50</number>
-     </property>
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="tickInterval">
-      <number>0</number>
-     </property>
-    </widget>
-   </item>
    <item row="45" column="1">
     <spacer name="verticalSpacer">
      <property name="orientation">
@@ -379,7 +354,7 @@
       <double>0.500000000000000</double>
      </property>
      <property name="maximumValue">
-      <double>10.000000000000000</double>
+      <double>50.000000000000000</double>
      </property>
     </widget>
    </item>
@@ -387,6 +362,9 @@
     <widget class="QDoubleSpinBox" name="thresholdMinSpinBox">
      <property name="specialValueText">
       <string>Minimum Threshold</string>
+     </property>
+     <property name="correctionMode">
+      <enum>QAbstractSpinBox::CorrectToPreviousValue</enum>
      </property>
      <property name="singleStep">
       <double>0.500000000000000</double>
@@ -420,6 +398,31 @@
      </property>
      <property name="text">
       <string>Display Landmarks</string>
+     </property>
+    </widget>
+   </item>
+   <item row="43" column="1">
+    <widget class="QSlider" name="opacitySlider">
+     <property name="whatsThis">
+      <string>Opacity slider</string>
+     </property>
+     <property name="accessibleName">
+      <string>Opacity slider</string>
+     </property>
+     <property name="accessibleDescription">
+      <string>this slider adjusts the opacity of the mri volume</string>
+     </property>
+     <property name="maximum">
+      <number>100</number>
+     </property>
+     <property name="value">
+      <number>50</number>
+     </property>
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="tickInterval">
+      <number>0</number>
      </property>
     </widget>
    </item>
