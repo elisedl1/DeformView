@@ -79,7 +79,7 @@ class BrainShiftModuleParameterNode:
 
 
 #
-# BrainShiftModuleWidget
+# BrainShiftModuleWidgeto
 #
 
 
@@ -241,11 +241,13 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # allow for user to adjust opacity
         self.ui.opacitySlider.valueChanged.connect(self.onOpacityChanged)
+        self.onOpacityChanged(self.ui.opacitySlider.value)
 
 
     def onOpacityChanged(self, value) -> None:
         normalizedValue = value/100
         slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
+        self.ui.opacityValue.setText(f"{value:.0f}%")
 
 
     def onToggleUsDisplay(self) -> None:
@@ -706,7 +708,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-        ras = [0.0, 0.0, 0.0]
+        ras = [0.0, 0.0, 0.0] 
         self.crosshairNode.GetCursorPositionRAS(ras)
     
         # move label to current RAS position
