@@ -588,118 +588,113 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
+
+
+
+
     def onLoadDisplacementVolume(self) -> None:
 
-        '''
-        Runs when user selects the Load Volume button
-        
-        '''
-        #selectedVolume = self.ui.existingDisplacementVolumeSelector.currentNode()
-        selectedVolume = self.ui.loadedTransformVolume.currentNode()
-
-
-        usVolume = self.ui.referenceVolume.currentNode()
-       
-        backgroundVolume = self._parameterNode.backgroundVolume
-        
-        state = self.ui.enableUsBorderDisplay.checkState()
-
-        self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state, reload=True)
-        
-
-        # visualize it
-        # slicer.util.setSliceViewerLayers(
-        #     background=backgroundVolume,
-        #     foreground=selectedVolume
-        # )
-        
-        self.onLoadExpertLabelsClicked()
-        
-        persistentDisplayNode = selectedVolume.GetDisplayNode()
-        # newDisplayNode = slicer.mrmlScene.AddNewNodeByClass(persistentDisplayNode.GetClassName())
-        # newDisplayNode.Copy(persistentDisplayNode)
-        # #newDisplayNode = originalDisplayNode
-
-        # Attach the new display node to the same volume
-        #selectedVolume.RemoveAllDisplayNodeIDs()
-
-        internalDisplayNode = slicer.mrmlScene.AddNewNodeByClass(persistentDisplayNode.GetClassName())
-        #internalDisplayNode.Copy(persistentDisplayNode)
-        internalDisplayNode = persistentDisplayNode
-        selectedVolume.AddAndObserveDisplayNodeID(internalDisplayNode.GetID())
-
-        #persistentDisplayNode.AddAndObserveDisplayNodeID(newDisplayNode.GetID())
-        # print(selectedVolume.GetDisplayNode())
-        # print(selectedVolume.GetClassName())
-
-        numDisplayNodes = selectedVolume.GetNumberOfDisplayNodes()      
-        print(f"Number of display nodes: {numDisplayNodes}")
-        print("Update 1")
-        # change to selected color
-        colorNode = self.ui.colorMapSelector.currentNode()
-        if colorNode:
+            '''
+            Runs when user selects the Load Volume button
             
-            internalDisplayNode.SetAndObserveColorNodeID(colorNode.GetID())
-            #internalDisplayNode.Modified()
-            #displayNode.SetAndObserveColorNodeID(colorNode.GetID())
-            #displayNode.Modified() #this line is directly modifying the volume - problem if incorrect volume is loaded in
+            '''
+            #selectedVolume = self.ui.existingDisplacementVolumeSelector.currentNode()
+            selectedVolume = self.ui.loadedTransformVolume.currentNode()
 
-        normalizedValue = self.ui.opacitySlider.value / 100
-        internalDisplayNode.SetOpacity(normalizedValue)
+            usVolume = self.ui.referenceVolume.currentNode()
         
-        slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(persistentDisplayNode)
-
-        # Do NOT set it as foreground of another volume to avoid cropping
-        for sliceName in slicer.app.layoutManager().sliceViewNames():
-            sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
-            sliceComposite.SetBackgroundVolumeID(backgroundVolume.GetID())  # your US/reference
-            sliceComposite.SetForegroundVolumeID(selectedVolume.GetID())    # displacement field
-            sliceComposite.SetForegroundOpacity(normalizedValue)
-            # scalarBar = slicer.app.layoutManager().sliceWidget(sliceName).GetForegroundScalarBarActor()
-            # scalarBar.SetTitle("Displacement magnitude")
-            # scalarBar.SetNumberOfLabels(5)
-
-        #slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
-
-        # set max and min of threshold slider
-        imageData = selectedVolume.GetImageData()
-        if imageData:
-            scalarRange = imageData.GetScalarRange()
-            print(scalarRange)
-            #Such that the default min will always be in the first step (always have 20 steps + user can specify specific values in the windows)
-            defaultMinValue = float(round(scalarRange[0] + (scalarRange[1] - scalarRange[0])*0.05, 2))
-            print(defaultMinValue)
-            minScalar, maxScalar = scalarRange[0], scalarRange[1]
-
-            print(f"Scalar range: {scalarRange}, min: {minScalar}, max: {maxScalar}")
-            # set threshold slider limits based on max and min displacement values
+            backgroundVolume = self._parameterNode.backgroundVolume
             
-            self.ui.thresholdSlider.minimum = minScalar
-            self.ui.thresholdSlider.maximum = maxScalar
-            self.ui.thresholdSlider.setMinimumValue(minScalar)
-            self.ui.thresholdSlider.setMaximumValue(maxScalar)
+            state = self.ui.enableUsBorderDisplay.checkState()
+
+            self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state, reload=True)
             
+            # slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(selectedVolume)    
+
+
+            # visualize it
+            # slicer.util.setSliceViewerLayers(
+            #     background=backgroundVolume,
+            #     foreground=selectedVolume
+            # )
             
-            self.ui.thresholdMinSpinBox.setMinimum(minScalar)
-            self.ui.thresholdMinSpinBox.setMaximum(maxScalar)
+            self.onLoadExpertLabelsClicked()
+            
+            persistentDisplayNode = selectedVolume.GetDisplayNode()
+            # newDisplayNode = slicer.mrmlScene.AddNewNodeByClass(persistentDisplayNode.GetClassName())
+            # newDisplayNode.Copy(persistentDisplayNode)
+            # #newDisplayNode = originalDisplayNode
 
-            self.ui.thresholdMaxSpinBox.setMinimum(minScalar)
-            self.ui.thresholdMaxSpinBox.setMaximum(maxScalar)
+            # Attach the new display node to the same volume
+            #selectedVolume.RemoveAllDisplayNodeIDs()
 
-            step = (maxScalar - minScalar) / 20 #always have 20 steps
+            internalDisplayNode = slicer.mrmlScene.AddNewNodeByClass(persistentDisplayNode.GetClassName())
+            #internalDisplayNode.Copy(persistentDisplayNode)
+            internalDisplayNode = persistentDisplayNode
+            selectedVolume.AddAndObserveDisplayNodeID(internalDisplayNode.GetID())
 
-            self.ui.thresholdSlider.singleStep = step
-            self.ui.thresholdMinSpinBox.singleStep = step
-            self.ui.thresholdMaxSpinBox.singleStep = step
+            #persistentDisplayNode.AddAndObserveDisplayNodeID(newDisplayNode.GetID())
+            # print(selectedVolume.GetDisplayNode())
+            # print(selectedVolume.GetClassName())
+
+            numDisplayNodes = selectedVolume.GetNumberOfDisplayNodes()      
+            print(f"Number of display nodes: {numDisplayNodes}")
+            print("Update 1")
+            # change to selected color
+            colorNode = self.ui.colorMapSelector.currentNode()
+            if colorNode:
+                
+                internalDisplayNode.SetAndObserveColorNodeID(colorNode.GetID())
+                #internalDisplayNode.Modified()
+                #displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+                #displayNode.Modified() #this line is directly modifying the volume - problem if incorrect volume is loaded in
+
+            normalizedValue = self.ui.opacitySlider.value / 100
+            internalDisplayNode.SetOpacity(normalizedValue)
+            
+            slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(persistentDisplayNode)
+
+            # Do NOT set it as foreground of another volume to avoid cropping
+            for sliceName in slicer.app.layoutManager().sliceViewNames():
+                sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
+                sliceComposite.SetBackgroundVolumeID(backgroundVolume.GetID())  # your US/reference
+                sliceComposite.SetForegroundVolumeID(selectedVolume.GetID())    # displacement field
+                sliceComposite.SetForegroundOpacity(normalizedValue)
+                # scalarBar = slicer.app.layoutManager().sliceWidget(sliceName).GetForegroundScalarBarActor()
+                # scalarBar.SetTitle("Displacement magnitude")
+                # scalarBar.SetNumberOfLabels(5)
+
+            #slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
 
 
-            #Always set the values after setting the mins/ maxs to avoid caching issues
-            self.ui.thresholdSlider.setValues(minScalar, maxScalar)
-            self.ui.thresholdMinSpinBox.setValue(defaultMinValue)
-            self.ui.thresholdMaxSpinBox.setValue(maxScalar)
+            # set max and min of threshold slider
+            imageData = selectedVolume.GetImageData()
+            if imageData:
+                minScalar, maxScalar = imageData.GetScalarRange()
+                defaultMinValue = minScalar + 0.02 * (maxScalar - minScalar) #Default minimum set to 2%
+                self.scalarRange = (float(minScalar), float(maxScalar))  # store exact range
+                print(f"min: {minScalar}, max: {maxScalar}")
+                print(defaultMinValue)
+                
+                self.ui.thresholdSlider.setRange(minScalar, maxScalar)
 
+                self.ui.thresholdMinSpinBox.setSpecialValueText("") #clear 'Minimum Threshold'
+                self.ui.thresholdMaxSpinBox.setSpecialValueText("")  
+                self.ui.thresholdMinSpinBox.setRange(minScalar, maxScalar)
+                self.ui.thresholdMaxSpinBox.setRange(minScalar, maxScalar)
+                self.ui.thresholdMinSpinBox.setDecimals(6) 
+                self.ui.thresholdMaxSpinBox.setDecimals(6)
 
+                step = (maxScalar - minScalar) / 1000   # 0.1% of range 
+            
+                self.ui.thresholdSlider.singleStep = step
+                self.ui.thresholdMinSpinBox.singleStep = step
+                self.ui.thresholdMaxSpinBox.singleStep = step
 
+                #Always set the values after setting the mins/ maxs to avoid caching issues 
+                self.ui.thresholdSlider.setValues(minScalar, maxScalar)
+                self.ui.thresholdMinSpinBox.setValue(defaultMinValue)  
+                self.ui.thresholdMaxSpinBox.setValue(maxScalar)
 
 
 
