@@ -704,6 +704,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if not self.labelMarkupNode.GetDisplayNode().GetVisibility2D():
             return
 
+
+
         ras = [0.0, 0.0, 0.0]
         self.crosshairNode.GetCursorPositionRAS(ras)
     
