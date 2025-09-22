@@ -22,6 +22,8 @@ from slicer import vtkMRMLVectorVolumeNode
 import vtk.util.numpy_support
 import qt
 
+import re
+
 #
 # BrainShiftModule
 #
@@ -95,6 +97,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.logic = None
         self._parameterNode = None
         self._parameterNodeGuiTag = None
+
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -180,6 +183,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.enableHoverDisplayCheckbox.setChecked(False)  # start disabled
         self.ui.enableHoverDisplayCheckbox.connect("toggled(bool)", self.onToggleHoverDisplay)
 
+        self.line_edit = qt.QLineEdit(self)
+        self.layout.addWidget(self.line_edit)
 
         # connect backgroundVolume
         self.ui.backgroundVolume.setProperty("SlicerParameterName", "backgroundVolume")
@@ -243,6 +248,27 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.opacitySlider.valueChanged.connect(self.onOpacityChanged)
         self.onOpacityChanged(self.ui.opacitySlider.value)
 
+        #Euclidian
+        self.watchActiveLabel()
+        self.ui.selectedLandmarks.setReadOnly(True)
+        self.ui.landmarkEuclidianDistance.setReadOnly(True)
+
+        
+
+
+
+
+
+
+        
+
+
+
+
+        
+
+
+
 
     def onOpacityChanged(self, value) -> None:
         normalizedValue = value/100
@@ -260,10 +286,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def createJacobianColorNode(self):
         # Check if node already exists
-        # existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
-        # if existingNode:
+        existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
+        if existingNode:
         #     print("JacobianMap already exists, reusing.")
-        #     return existingNode
+            return existingNode
 
         # Create a new color node
 
@@ -339,9 +365,11 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     displayNode.SetSelectedColor(0.0, 0.0, 0.0)
                     displayNode.SetGlyphTypeFromString("Circle2D")
                     displayNode.SetSelected(checked)
-                    displayNode.SetHandlesInteractive(False)
+                    displayNode.SetHandlesInteractive(False) #??
+                    displayNode.SetInteractionHandleScale(0.0)
+
             else:
-                print("don't show node", node.GetName())
+                print("don't show node", node.GetName()) #stores typed in landmark name
                 #displayNode = node.GetDisplayNode()
                 displayNode.SetVisibility(False)
                 displayNode.SetVisibility2D(False)
@@ -354,6 +382,13 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         for interactor, tag in getattr(self, "sliceObservers", []):
             interactor.RemoveObserver(tag)
             self.sliceObservers = []
+        for dn, tag in getattr(self, "_activeWatchers", []):
+            try:
+                dn.RemoveObserver(tag)
+            except:
+                pass
+        self._activeWatchers = []
+
     
 
     def onSceneUpdated(self, caller, event):
@@ -447,9 +482,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 
   
     def onNodeChanged(self, caller, event) -> None:
-        #newNode = callData
-        #if isinstance(newNode, slicer.vtkMRMLMarkupsFiducialNode):
-            #print(f"New fiducial node added: {newNode.GetName()}")
+    
         self.updateLandmarkSelectorComboBox()
 
     
@@ -470,7 +503,15 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         for node in fiducialNodes:
             if node == self.labelMarkupNode:  # or whatever your variable name is
                 continue
-            self.ui.LandmarkSelectorComboBox.addItem(node.GetName())
+            self.ui.LandmarkSelectorComboBox.addItem(node.GetName()) #stores node name (string)
+
+        self.watchActiveLabel()
+        
+       
+
+
+
+
 
 
     def onLandmarkSelectionChanged(self):
@@ -494,22 +535,143 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if not displayNode:
                 continue
             if node.GetName() in selectedNames:
-                displayNode.SetUsePointColors(False)         # Use global color, not per-point
+                displayNode.SetUsePointColors(True)         # Use global color, not per-point
                 displayNode.SetVisibility(True)
-                displayNode.SetVisibility2D(True)
+                displayNode.SetVisibility2D()
                 displayNode.SetTextScale(1.0)
                 
                 displayNode.SetActiveColor([1.0, 0.0, 1.0])   # Pink when active
                 displayNode.SetColor(1.0, 0.0, 1.0)           # Pink when not active
                 displayNode.SetSelectedColor(1.0, 0.0, 1.0)   # Pink when selected
-                displayNode.SetUseSelectedColor(True)       
+                displayNode.SetUseSelectedColor()       
                 
                 displayNode.SetGlyphScale(2.0)
                 displayNode.SetHandlesInteractive(False)
+                displayNode.SetInteractionHandleScale(0.0)
             else:
 
                 displayNode.SetVisibility(False)
                 displayNode.SetVisibility2D(False)
+
+
+    def watchActiveLabel(self):
+        
+        #observers for selected landmark
+        for n, tag in getattr(self, "_activeWatchers", []):
+            try: n.RemoveObserver(tag)
+            except: pass
+        self._activeWatchers = []
+        self._lastDistancePrinted = None
+
+        def onPointEnd(markupsNode, ev):
+            dn = markupsNode.GetDisplayNode()
+            if not dn:
+                return
+            if dn.GetActiveComponentType() != slicer.vtkMRMLMarkupsDisplayNode.ComponentControlPoint:
+                return
+            i = dn.GetActiveComponentIndex()
+            if i is None or i < 0 or i >= markupsNode.GetNumberOfControlPoints():
+                return
+
+            dist = self.getActivePairInfo()
+            if dist is None:
+                return
+            if self._lastDistancePrinted is not None and abs(dist - self._lastDistancePrinted) < 1e-6:
+                return
+            self._lastDistancePrinted = dist
+            #print(f"distance = {dist:.3f} mm")
+            self.updateLandmarkDistanceDisplay(dist)
+            
+        for n in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+            if n is getattr(self, "labelMarkupNode", None):
+                continue
+            tag = n.AddObserver(slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, onPointEnd)
+            self._activeWatchers.append((n, tag))
+            
+
+    def getActivePairInfo(self):
+
+        activeNode = None
+        activeIndex = None
+        
+        #find active landmark
+        for n in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+            if n is getattr(self, "labelMarkupNode", None) or not n.GetDisplayNode():
+                continue
+            if n.GetDisplayNode().GetActiveComponentType() != slicer.vtkMRMLMarkupsDisplayNode.ComponentControlPoint:
+                continue
+            idx = n.GetDisplayNode().GetActiveComponentIndex()
+            if idx is None or idx < 0:
+                continue
+            activeNode = n
+            activeIndex = idx
+            break
+
+        if activeNode is None:
+            return None
+        
+        #find pair landmark
+        pairNode = None
+        for lmrk in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+            if lmrk is not activeNode and lmrk is not getattr(self, "labelMarkupNode", None):
+                pairNode = lmrk
+                break
+        if pairNode is None:
+            return None
+
+        pairIndex = -1
+        if activeIndex < pairNode.GetNumberOfControlPoints():
+            pairIndex = activeIndex
+        if pairIndex < 0:
+            return None
+        
+        #compute distance in IJK (mm)
+        rasA = [0.0, 0.0, 0.0]
+        rasB = [0.0, 0.0, 0.0]
+        activeNode.GetNthControlPointPositionWorld(activeIndex, rasA)
+        pairNode.GetNthControlPointPositionWorld(pairIndex, rasB)
+        vol = self.ui.loadedTransformVolume.currentNode()
+        ijkA = ijkB = None
+        if vol:
+            rasToIjk = vtk.vtkMatrix4x4()
+            vol.GetRASToIJKMatrix(rasToIjk)
+
+            ijkhA = [0.0, 0.0, 0.0, 1.0]
+            ras_hA = [rasA[0], rasA[1], rasA[2], 1.0]
+            rasToIjk.MultiplyPoint(ras_hA, ijkhA)
+            ijkA = [float(ijkhA[0]), float(ijkhA[1]), float(ijkhA[2])]
+
+            ijkhB = [0.0, 0.0, 0.0, 1.0]
+            ras_hB = [rasB[0], rasB[1], rasB[2], 1.0]
+            rasToIjk.MultiplyPoint(ras_hB, ijkhB)
+            ijkB = [float(ijkhB[0]), float(ijkhB[1]), float(ijkhB[2])]
+
+        dx = ijkA[0]-ijkB[0]
+        dy = ijkA[1]-ijkB[1]
+        dz = ijkA[2]-ijkB[2]
+        activeLabel = activeNode.GetNthControlPointLabel(activeIndex) or f"{activeNode.GetName()}-{activeIndex+1}"
+        pairLabel   = pairNode.GetNthControlPointLabel(pairIndex)   or f"{pairNode.GetName()}-{pairIndex+1}"
+        #print(f"{activeLabel}: IJK = {(ijkA)}")
+        #print(f"{pairLabel}: IJK = {(ijkB)}")
+        self.updateSelectedLandmarksDisplay(activeLabel, pairLabel)
+        return (dx*dx + dy*dy + dz*dz) ** 0.5 
+    
+
+    def updateLandmarkDistanceDisplay(self, dist: float) -> None:
+    
+        if dist is None:
+            self.ui.landmarkEuclidianDistance.setText("N/A")
+        else:
+            self.ui.landmarkEuclidianDistance.setText(f"{dist:.3f} mm")
+            self.ui.landmarkEuclidianDistance.setReadOnly(True)
+
+    
+    def updateSelectedLandmarksDisplay(self, activeLabel: str, pairLabel: str) -> None:
+        if not hasattr(self.ui, 'selectedLandmarks') or self.ui.selectedLandmarks is None:
+            return
+        self.ui.selectedLandmarks.setReadOnly(True)
+        self.ui.landmarkEuclidianDistance.setReadOnly(True)
+        self.ui.selectedLandmarks.setText(f"{activeLabel}  ↔  {pairLabel}")
 
 
     def setParameterNode(self, inputParameterNode: Optional[BrainShiftModuleParameterNode]) -> None:
@@ -557,6 +719,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             logging.info(f"Transform Node: {self._parameterNode.transformNode}")
             logging.info(f"Displacement Volume: {self._parameterNode.displacementMagnitudeVolume}")
 
+            #TODO: stop duplicates of displacement/jacobian
+            
             # Create displacement field (vector volume)
             displacementVolume = self.logic.computeDisplacementMagnitude(
                 referenceVolume=self._parameterNode.referenceVolume,
@@ -569,6 +733,52 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 transformNode=self._parameterNode.transformNode
             )
             
+            # --- Make displacementMagnitude the thing we see + select in UI ---
+
+            # Ensure the magnitude volume has a display node
+            dispDisplay = displacementVolume.GetDisplayNode()
+            if not dispDisplay:
+                displacementVolume.CreateDefaultDisplayNodes()
+                dispDisplay = displacementVolume.GetDisplayNode()
+
+            # Sensible W/L (lets Slicer compute it from data range)
+            if dispDisplay:
+                dispDisplay.AutoWindowLevelOn()
+                dispDisplay.SetScalarVisibility(True)
+
+
+
+            # displacementMagnitude by default
+            if hasattr(self.ui, "loadedTransformVolume") and displacementVolume:
+                try:
+                    self.ui.loadedTransformVolume.nodeTypes = ['vtkMRMLScalarVolumeNode']
+                except Exception:
+                    pass  # already set in setup()
+                self.ui.loadedTransformVolume.setEnabled(True)
+                self.ui.loadedTransformVolume.setCurrentNode(displacementVolume)
+
+
+            # fMRI as default colour (unless one already preselected)
+            #colorNode = None
+            if hasattr(self.ui, "colorMapSelector"):
+                colorNode = self.ui.colorMapSelector.currentNode()
+            if colorNode is None:
+                colorNode = slicer.util.getFirstNodeByClassByName('vtkMRMLColorTableNode', 'fMRI')
+            self.ui.colorMapSelector.setEnabled(True)
+            self.ui.colorMapSelector.setCurrentNode(colorNode)
+            
+
+            self.onLoadDisplacementVolume()
+
+
+
+            #if colorNode and dispDisplay:
+                #dispDisplay.SetAndObserveColorNodeID(colorNode.GetID())
+            # --- end ---
+
+
+
+
             # self._parameterNode.jacobianMagnitudeVolume = jacobianVolume  # Save for access
             # self._parameterNode.displacementMagnitudeVolume = displacementVolume  # Save for access
 
@@ -596,107 +806,116 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onLoadDisplacementVolume(self) -> None:
 
-            '''
-            Runs when user selects the Load Volume button
-            
-            '''
-            #selectedVolume = self.ui.existingDisplacementVolumeSelector.currentNode()
-            selectedVolume = self.ui.loadedTransformVolume.currentNode()
-
-            usVolume = self.ui.referenceVolume.currentNode()
+        '''
+        Runs when user selects the Load Volume button
         
-            backgroundVolume = self._parameterNode.backgroundVolume
+        '''
+
+        #selectedVolume = self.ui.existingDisplacementVolumeSelector.currentNode()
+        selectedVolume = self.ui.loadedTransformVolume.currentNode()
+
+        if not selectedVolume or not selectedVolume.GetDisplayNode():
+            slicer.util.errorDisplay("Please select a volume before loading.")
+            return
+
+        usVolume = self.ui.referenceVolume.currentNode()
+    
+        backgroundVolume = self._parameterNode.backgroundVolume
+        
+        state = self.ui.enableUsBorderDisplay.checkState()
+
+        self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state, reload=True)
+        
+        # slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(selectedVolume)    
+
+
+        # visualize it
+        # slicer.util.setSliceViewerLayers(
+        #     background=backgroundVolume,
+        #     foreground=selectedVolume
+        # )
+        
+        self.onLoadExpertLabelsClicked()
+
+        
+        persistentDisplayNode = selectedVolume.GetDisplayNode()
+
+        
+    
+        # newDisplayNode = slicer.mrmlScene.AddNewNodeByClass(persistentDisplayNode.GetClassName())
+        # newDisplayNode.Copy(persistentDisplayNode)
+        # #newDisplayNode = originalDisplayNode
+
+        # Attach the new display node to the same volume
+        #selectedVolume.RemoveAllDisplayNodeIDs()
+
+        internalDisplayNode = slicer.mrmlScene.AddNewNodeByClass(persistentDisplayNode.GetClassName())
+        #internalDisplayNode.Copy(persistentDisplayNode)
+        internalDisplayNode = persistentDisplayNode
+        selectedVolume.AddAndObserveDisplayNodeID(internalDisplayNode.GetID())
+
+        #persistentDisplayNode.AddAndObserveDisplayNodeID(newDisplayNode.GetID())
+        # print(selectedVolume.GetDisplayNode())
+        # print(selectedVolume.GetClassName())
+
+        numDisplayNodes = selectedVolume.GetNumberOfDisplayNodes()      
+        print(f"Number of display nodes: {numDisplayNodes}")
+        print("Update 1")
+        # change to selected color
+        colorNode = self.ui.colorMapSelector.currentNode()
+        if colorNode:
             
-            state = self.ui.enableUsBorderDisplay.checkState()
+            internalDisplayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            #internalDisplayNode.Modified()
+            #displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            #displayNode.Modified() #this line is directly modifying the volume - problem if incorrect volume is loaded in
 
-            self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state, reload=True)
+        normalizedValue = self.ui.opacitySlider.value / 100
+        internalDisplayNode.SetOpacity(normalizedValue)
+        
+        slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(persistentDisplayNode)
+
+        # Do NOT set it as foreground of another volume to avoid cropping
+        for sliceName in slicer.app.layoutManager().sliceViewNames():
+            sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
+            sliceComposite.SetBackgroundVolumeID(backgroundVolume.GetID())  # your US/reference
+            sliceComposite.SetForegroundVolumeID(selectedVolume.GetID())    # displacement field
+            sliceComposite.SetForegroundOpacity(normalizedValue)
+            # scalarBar = slicer.app.layoutManager().sliceWidget(sliceName).GetForegroundScalarBarActor()
+            # scalarBar.SetTitle("Displacement magnitude")
+            # scalarBar.SetNumberOfLabels(5)
+
+        #slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
+
+
+        # set max and min of threshold slider
+        imageData = selectedVolume.GetImageData()
+        if imageData:
+            minScalar, maxScalar = imageData.GetScalarRange()
+            defaultMinValue = minScalar + 0.02 * (maxScalar - minScalar) #Default minimum set to 2%
+            self.scalarRange = (float(minScalar), float(maxScalar))  # store exact range
+            print(f"min: {minScalar}, max: {maxScalar}")
+            print(defaultMinValue)
             
-            # slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(selectedVolume)    
+            self.ui.thresholdSlider.setRange(minScalar, maxScalar)
 
+            self.ui.thresholdMinSpinBox.setSpecialValueText("") #clear 'Minimum Threshold'
+            self.ui.thresholdMaxSpinBox.setSpecialValueText("")  
+            self.ui.thresholdMinSpinBox.setRange(minScalar, maxScalar)
+            self.ui.thresholdMaxSpinBox.setRange(minScalar, maxScalar)
+            self.ui.thresholdMinSpinBox.setDecimals(6) 
+            self.ui.thresholdMaxSpinBox.setDecimals(6)
 
-            # visualize it
-            # slicer.util.setSliceViewerLayers(
-            #     background=backgroundVolume,
-            #     foreground=selectedVolume
-            # )
-            
-            self.onLoadExpertLabelsClicked()
-            
-            persistentDisplayNode = selectedVolume.GetDisplayNode()
-            # newDisplayNode = slicer.mrmlScene.AddNewNodeByClass(persistentDisplayNode.GetClassName())
-            # newDisplayNode.Copy(persistentDisplayNode)
-            # #newDisplayNode = originalDisplayNode
+            step = (maxScalar - minScalar) / 1000   # 0.1% of range 
+        
+            self.ui.thresholdSlider.singleStep = step
+            self.ui.thresholdMinSpinBox.singleStep = step
+            self.ui.thresholdMaxSpinBox.singleStep = step
 
-            # Attach the new display node to the same volume
-            #selectedVolume.RemoveAllDisplayNodeIDs()
-
-            internalDisplayNode = slicer.mrmlScene.AddNewNodeByClass(persistentDisplayNode.GetClassName())
-            #internalDisplayNode.Copy(persistentDisplayNode)
-            internalDisplayNode = persistentDisplayNode
-            selectedVolume.AddAndObserveDisplayNodeID(internalDisplayNode.GetID())
-
-            #persistentDisplayNode.AddAndObserveDisplayNodeID(newDisplayNode.GetID())
-            # print(selectedVolume.GetDisplayNode())
-            # print(selectedVolume.GetClassName())
-
-            numDisplayNodes = selectedVolume.GetNumberOfDisplayNodes()      
-            print(f"Number of display nodes: {numDisplayNodes}")
-            print("Update 1")
-            # change to selected color
-            colorNode = self.ui.colorMapSelector.currentNode()
-            if colorNode:
-                
-                internalDisplayNode.SetAndObserveColorNodeID(colorNode.GetID())
-                #internalDisplayNode.Modified()
-                #displayNode.SetAndObserveColorNodeID(colorNode.GetID())
-                #displayNode.Modified() #this line is directly modifying the volume - problem if incorrect volume is loaded in
-
-            normalizedValue = self.ui.opacitySlider.value / 100
-            internalDisplayNode.SetOpacity(normalizedValue)
-            
-            slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(persistentDisplayNode)
-
-            # Do NOT set it as foreground of another volume to avoid cropping
-            for sliceName in slicer.app.layoutManager().sliceViewNames():
-                sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
-                sliceComposite.SetBackgroundVolumeID(backgroundVolume.GetID())  # your US/reference
-                sliceComposite.SetForegroundVolumeID(selectedVolume.GetID())    # displacement field
-                sliceComposite.SetForegroundOpacity(normalizedValue)
-                # scalarBar = slicer.app.layoutManager().sliceWidget(sliceName).GetForegroundScalarBarActor()
-                # scalarBar.SetTitle("Displacement magnitude")
-                # scalarBar.SetNumberOfLabels(5)
-
-            #slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
-
-
-            # set max and min of threshold slider
-            imageData = selectedVolume.GetImageData()
-            if imageData:
-                minScalar, maxScalar = imageData.GetScalarRange()
-                defaultMinValue = minScalar + 0.02 * (maxScalar - minScalar) #Default minimum set to 2%
-                self.scalarRange = (float(minScalar), float(maxScalar))  # store exact range
-                print(f"min: {minScalar}, max: {maxScalar}")
-                print(defaultMinValue)
-                
-                self.ui.thresholdSlider.setRange(minScalar, maxScalar)
-
-                self.ui.thresholdMinSpinBox.setSpecialValueText("") #clear 'Minimum Threshold'
-                self.ui.thresholdMaxSpinBox.setSpecialValueText("")  
-                self.ui.thresholdMinSpinBox.setRange(minScalar, maxScalar)
-                self.ui.thresholdMaxSpinBox.setRange(minScalar, maxScalar)
-                self.ui.thresholdMinSpinBox.setDecimals(6) 
-                self.ui.thresholdMaxSpinBox.setDecimals(6)
-
-                step = (maxScalar - minScalar) / 1000   # 0.1% of range 
-            
-                self.ui.thresholdSlider.singleStep = step
-                self.ui.thresholdMinSpinBox.singleStep = step
-                self.ui.thresholdMaxSpinBox.singleStep = step
-
-                #Always set the values after setting the mins/ maxs to avoid caching issues 
-                self.ui.thresholdSlider.setValues(minScalar, maxScalar)
-                self.ui.thresholdMinSpinBox.setValue(defaultMinValue)  
-                self.ui.thresholdMaxSpinBox.setValue(maxScalar)
+            #Always set the values after setting the mins/ maxs to avoid caching issues 
+            self.ui.thresholdSlider.setValues(minScalar, maxScalar)
+            self.ui.thresholdMinSpinBox.setValue(defaultMinValue)  
+            self.ui.thresholdMaxSpinBox.setValue(maxScalar)
 
 
 
@@ -706,13 +925,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if not self.labelMarkupNode.GetDisplayNode().GetVisibility2D():
             return
 
-
-
         ras = [0.0, 0.0, 0.0] 
         self.crosshairNode.GetCursorPositionRAS(ras)
     
         # move label to current RAS position
         self.labelMarkupNode.SetNthControlPointPosition(0, ras)
+
 
         # sample displacement volume at that RAS location
         #displacementVolume = self.ui.existingDisplacementVolumeSelector.currentNode()
@@ -758,6 +976,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.crosshairNode.RemoveObserver(self.crosshairObserverTag)
                 self.crosshairObserverTag = None
 
+        
 
 
 
