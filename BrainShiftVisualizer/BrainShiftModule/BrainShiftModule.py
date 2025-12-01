@@ -186,6 +186,11 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.line_edit = qt.QLineEdit(self)
         self.layout.addWidget(self.line_edit)
 
+        # self.line_edit = qt.QLineEdit()
+        # self.layout().addWidget(self.line_edit)
+
+        #self.ui.line_edit = qt.QLineEdit()
+        
         # connect backgroundVolume
         self.ui.backgroundVolume.setProperty("SlicerParameterName", "backgroundVolume")
 
@@ -981,23 +986,66 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-    def getLandmarkLabel(self):
-        default_text = "Initial Text"
+    # def getLandmarkLabel(self):
+    #     default_text = "Initial Text"
     
-        text1 = qt.QInputDialog.getText(self.line_edit, "Please name the first landmark file (derived from the source volume)", "Name: ")
-        text2 = qt.QInputDialog.getText(self.line_edit, "Please name the second landmark file (derived from the moving volume)", "Name: ")
+    #     # text1 = qt.QInputDialog.getText(self.line_edit, "Please name the first landmark file (derived from the source volume)", "Name: ")
+    #     # text2 = qt.QInputDialog.getText(self.line_edit, "Please name the second landmark file (derived from the moving volume)", "Name: ")
 
-        #print(f"User input: '{text}', OK pressed: ")
+    #     text1, ok1 = qt.QInputDialog.getText(
+    #         self,  # parent widget
+    #         "Please name the first landmark file (derived from the source volume)",
+    #         "Name:"
+    #     )
 
-        #print(type(ok))
-        if text1:
-            self.line_edit.setText(text1)
-        if text2:
-            self.line_edit.setText(text2)
+    #     text2, ok2 = qt.QInputDialog.getText(
+    #         self,
+    #         "Please name the second landmark file (derived from the moving volume)",
+    #         "Name:"
+    #     )
+    #     #print(f"User input: '{text}', OK pressed: ")
 
-        else:
-            raise Exception("could not rename landmark file")
-        print("Renamed to: ", text1)
+    #     #print(type(ok))
+    #     if text1:
+    #         self.line_edit.setText(text1)
+    #     if text2:
+    #         self.line_edit.setText(text2)
+
+    #     else:
+    #         raise Exception("could not rename landmark file")
+    #     print("Renamed to: ", text1)
+    #     return text1, text2
+
+    def getLandmarkLabel(self):
+        parent = slicer.util.mainWindow()  # safe parent for dialogs in Slicer
+
+        # First prompt
+        text1 = qt.QInputDialog.getText(
+            parent,
+            "Please name the first landmark file (derived from the source volume)",
+            "Name:",
+            qt.QLineEdit.Normal,  # Echo mode required!
+            ""                    # default text (optional)
+        )
+
+        if not text1:
+            slicer.util.errorDisplay("No name provided for first landmark file.")
+            return None, None
+
+        # Second prompt
+        text2 = qt.QInputDialog.getText(
+            parent,
+            "Please name the second landmark file (derived from the moving volume)",
+            "Name:",
+            qt.QLineEdit.Normal,
+            ""
+        )
+
+        if not text2:
+            slicer.util.errorDisplay("No name provided for second landmark file.")
+            return None, None
+
+        print("Renamed to:", text1, text2)
         return text1, text2
 
 

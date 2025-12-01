@@ -498,6 +498,9 @@
      </property>
     </widget>
    </item>
+   <item row="50" column="0">
+    <widget class="QLineEdit" name="line_edit"/>
+   </item>
   </layout>
  </widget>
  <customwidgets>
