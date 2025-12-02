@@ -196,9 +196,9 @@ def create_mesh_visualization(sphere_path, landmarks_path, output_html='sphere_m
 
 if __name__ == "__main__":
     # Default paths
-    sphere_path = 'GeometricTestCase/sphere.nii.gz'
-    landmarks_path = 'GeometricTestCase/sphere_landmarks.json'
-    output_html = 'GeometricTestCase/sphere_mesh.html'
+    sphere_path = 'GeometricTestCase/sphere_deformed_compression.nii.gz'
+    landmarks_path = 'GeometricTestCase/sphere_landmarks_deformed_compression.json'
+    output_html = 'GeometricTestCase/sphere_mesh_deformed.html'
     
     # Allow command line arguments
     if len(sys.argv) > 1:
