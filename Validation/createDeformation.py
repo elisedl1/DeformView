@@ -41,56 +41,6 @@ def load_sphere_and_landmarks(sphere_path, landmarks_path):
     return sphere_img, sphere_data, affine, landmarks_data
 
 
-# def simulate_deformation(coords, deformation_type='compression'):
-#     """
-#     Simulate different types of deformations for demonstration
-    
-#     Parameters:
-#     -----------
-#     coords : numpy array
-#         Array of shape (N, 3) in RAS space
-#     deformation_type : str
-#         Type of deformation: 'compression', 'twist', 'bend', or 'custom'
-        
-#     Returns:
-#     --------
-#     deformed : numpy array
-#         Deformed coordinates
-#     """
-#     deformed = coords.copy()
-    
-#     if deformation_type == 'compression':
-#         # Compress along Z axis, expand along X and Y
-#         deformed[:, 0] = coords[:, 0] * 1.15  # Expand X
-#         deformed[:, 1] = coords[:, 1] * 1.15  # Expand Y
-#         deformed[:, 2] = coords[:, 2] * 0.8   # Compress Z
-        
-#     elif deformation_type == 'twist':
-#         # Twist deformation (rotation increases with Z)
-#         r = np.sqrt(coords[:, 0]**2 + coords[:, 1]**2)
-#         theta = np.arctan2(coords[:, 1], coords[:, 0])
-#         z_factor = coords[:, 2] / radius #40.0  # Normalize by radius
-#         theta_new = theta + z_factor * 0.5  # Twist amount
-        
-#         deformed[:, 0] = r * np.cos(theta_new)
-#         deformed[:, 1] = r * np.sin(theta_new)
-#         deformed[:, 2] = coords[:, 2]
-        
-#     elif deformation_type == 'bend':
-#         # Bending deformation along X axis
-#         z_norm = coords[:, 2] / 40.0
-#         offset = z_norm * 10
-#         deformed[:, 0] = coords[:, 0] + offset
-#         deformed[:, 1] = coords[:, 1]
-#         deformed[:, 2] = coords[:, 2]
-        
-#     elif deformation_type == 'custom':
-#         # Placeholder for custom deformation
-#         # Modify this section for your own deformation
-#         deformed = coords.copy()
-#         print("  Using custom deformation (modify code for your own)")
-    
-#     return deformed
 # -------------------------------------------------------
 # 1. Deformations are now defined in VOXEL SPACE only
 # -------------------------------------------------------
@@ -122,10 +72,12 @@ def voxel_space_deformation(i, j, k, deformation_type="compression"):
     dk = np.zeros_like(I, dtype=float)
 
     if deformation_type == "compression":
-        # Compress along Z (K axis), expand in X/Y
-        di = +0.15 * I
-        dj = +0.15 * J
-        dk = -0.20 * K
+        print("  Applying compression deformation in voxel space...")
+        # Compress along Z (K axis), expand in X/Y - need to be big enough (in voxels)
+        di = +20.0 * I   
+        dj = +15.0 * J   
+        dk = -10.0 * K   
+
 
     elif deformation_type == "twist":
         # Twist around center axis, angle increases with K
@@ -151,90 +103,6 @@ def voxel_space_deformation(i, j, k, deformation_type="compression"):
 
     return di, dj, dk
 
-# def apply_deformation_to_volume(sphere_data, affine, deformation_type):
-#     """
-#     Apply deformation to entire volume using interpolation (no stripes!)
-    
-#     Parameters:
-#     -----------
-#     sphere_data : numpy array
-#         Original 3D volume data
-#     affine : numpy array
-#         Affine transformation matrix
-#     deformation_type : str
-#         Type of deformation to apply
-        
-#     Returns:
-#     --------
-#     deformed_data : numpy array
-#         Deformed 3D volume data
-#     displacement_field : numpy array
-#         Displacement field in voxel space (shape: [X, Y, Z, 3])
-#     """
-#     from scipy.ndimage import map_coordinates
-    
-#     print(f"  Applying {deformation_type} deformation to entire volume...")
-#     print(f"    Using trilinear interpolation for smooth results...")
-    
-#     # Get volume shape
-#     shape = sphere_data.shape
-    
-#     # Create coordinate grids in voxel space
-#     i_coords, j_coords, k_coords = np.meshgrid(
-#         np.arange(shape[0]),
-#         np.arange(shape[1]),
-#         np.arange(shape[2]),
-#         indexing='ij'
-#     )
-    
-#     # Convert voxel coordinates to RAS
-#     inv_affine = np.linalg.inv(affine)
-    
-#     # Flatten coordinates for processing
-#     voxel_coords = np.stack([i_coords.ravel(), j_coords.ravel(), k_coords.ravel()], axis=1)
-    
-#     # Convert to RAS
-#     ras_coords = []
-#     for voxel in voxel_coords:
-#         voxel_homogeneous = np.array([voxel[0], voxel[1], voxel[2], 1])
-#         ras = affine @ voxel_homogeneous
-#         ras_coords.append(ras[:3])
-    
-#     ras_coords = np.array(ras_coords)
-    
-#     # Apply deformation in RAS space
-#     ras_coords_deformed = simulate_deformation(ras_coords, deformation_type)
-    
-#     # Convert deformed RAS back to voxel coordinates
-#     voxel_coords_deformed = []
-#     for ras in ras_coords_deformed:
-#         ras_homogeneous = np.array([ras[0], ras[1], ras[2], 1])
-#         voxel = inv_affine @ ras_homogeneous
-#         voxel_coords_deformed.append(voxel[:3])
-    
-#     voxel_coords_deformed = np.array(voxel_coords_deformed)
-    
-#     # Reshape back to 3D grid
-#     i_deformed = voxel_coords_deformed[:, 0].reshape(shape)
-#     j_deformed = voxel_coords_deformed[:, 1].reshape(shape)
-#     k_deformed = voxel_coords_deformed[:, 2].reshape(shape)
-    
-#     # Use map_coordinates for smooth interpolation
-#     # This samples from the ORIGINAL volume at the INVERSE deformed positions
-#     coords_to_sample = np.array([i_deformed, j_deformed, k_deformed])
-#     deformed_data = map_coordinates(sphere_data, coords_to_sample, order=3, mode='constant', cval=0)
-    
-#     # Calculate displacement field in voxel space
-#     i_displacement = i_deformed - i_coords
-#     j_displacement = j_deformed - j_coords
-#     k_displacement = k_deformed - k_coords
-    
-#     displacement_field = np.stack([i_displacement, j_displacement, k_displacement], axis=-1)
-    
-#     print(f"    Deformed volume created: {np.sum(deformed_data > 0.5)} non-zero voxels")
-#     print(f"    Displacement field computed (shape: {displacement_field.shape})")
-    
-#     return deformed_data, displacement_field
 
 def apply_deformation_to_volume_voxel_space(volume, deformation_type):
     """
@@ -257,16 +125,21 @@ def apply_deformation_to_volume_voxel_space(volume, deformation_type):
     # Compute displacement field in voxel units
     di, dj, dk = voxel_space_deformation(i, j, k, deformation_type)
 
+    # print(f"  Displacement field stats:")
+    # print(f"    di: min={di.min():.4f}, max={di.max():.4f}, mean={di.mean():.4f}")
+    # print(f"    dj: min={dj.min():.4f}, max={dj.max():.4f}, mean={dj.mean():.4f}")
+    # print(f"    dk: min={dk.min():.4f}, max={dk.max():.4f}, mean={dk.mean():.4f}")
+
     # Generate deformed sampling grid
-    i_def = i + di
-    j_def = j + dj
-    k_def = k + dk
+    i_def = i - di
+    j_def = j - dj
+    k_def = k - dk
 
     # Interpolate smoothly
     coords = np.array([i_def, j_def, k_def])
     deformed = map_coordinates(volume, coords, order=3, mode="constant", cval=0)
 
-    print("  Deformation applied to volume.")
+    #print("  Deformation applied to volume.")
     return deformed, (di, dj, dk)
 
 
@@ -296,6 +169,41 @@ def simulate_deformation_voxel(coords_vox, deformation_type='compression'):
         deformed[:,0] = coords_vox[:,0] + offset
     
     return deformed
+
+
+def load_displacement_field(displacement_field_path):
+    """
+    Load displacement field from NIfTI file
+    
+    Parameters:
+    -----------
+    displacement_field_path : str
+        Path to the displacement field NIfTI file
+        
+    Returns:
+    --------
+    displacement_field : tuple of numpy arrays
+        Displacement field components (di, dj, dk) in voxel space
+    affine : numpy array
+        Affine transformation matrix from the NIfTI file
+    """
+    # Load NIfTI image
+    disp_img = nib.load(displacement_field_path)
+    
+    # Get affine matrix
+    affine = disp_img.affine
+    
+    # Get displacement field data (shape: [X, Y, Z, 3])
+    displacement_field = disp_img.get_fdata()
+    
+    # Split into components
+    di = displacement_field[..., 0]
+    dj = displacement_field[..., 1]
+    dk = displacement_field[..., 2]
+    
+    #displacement_field = np.stack([di, dj, dk], axis=-1)
+
+    return (di, dj, dk), affine
 
 def save_displacement_field(displacement_field, affine, deformation_type, output_path=None):
     """
@@ -335,67 +243,6 @@ def save_displacement_field(displacement_field, affine, deformation_type, output
     
     return output_path
 
-
-# def track_landmarks_through_deformation(landmark_coords_ras, sphere_data, affine, deformation_type):
-#     """
-#     Track landmarks through deformation by following their voxel positions
-    
-#     This ensures landmarks accurately represent the deformation field at their locations.
-    
-#     Parameters:
-#     -----------
-#     landmark_coords_ras : numpy array
-#         Original landmark coordinates in RAS space
-#     sphere_data : numpy array
-#         Original volume data
-#     affine : numpy array
-#         Affine transformation matrix
-#     deformation_type : str
-#         Type of deformation to apply
-        
-#     Returns:
-#     --------
-#     landmark_coords_deformed : numpy array
-#         Deformed landmark coordinates in RAS space (tracked through deformation)
-#     """
-#     inv_affine = np.linalg.inv(affine)
-#     landmark_coords_deformed = []
-    
-#     print(f"  Tracking {len(landmark_coords_ras)} landmarks through deformation...")
-    
-#     for idx, ras_coord in enumerate(landmark_coords_ras):
-#         # Convert landmark from RAS to voxel coordinates
-#         ras_homogeneous = np.array([ras_coord[0], ras_coord[1], ras_coord[2], 1])
-#         voxel_coord = inv_affine @ ras_homogeneous
-#         voxel_coord = voxel_coord[:3]
-        
-#         # Convert voxel back to RAS (to apply deformation in RAS space)
-#         voxel_homogeneous = np.array([voxel_coord[0], voxel_coord[1], voxel_coord[2], 1])
-#         ras_for_deform = affine @ voxel_homogeneous
-#         ras_for_deform = ras_for_deform[:3]
-        
-#         # Apply deformation in RAS space
-#         ras_deformed = simulate_deformation(ras_for_deform.reshape(1, 3), deformation_type)[0]
-        
-#         # Convert deformed RAS back to voxel coordinates
-#         ras_deformed_homogeneous = np.array([ras_deformed[0], ras_deformed[1], ras_deformed[2], 1])
-#         voxel_deformed = inv_affine @ ras_deformed_homogeneous
-#         voxel_deformed = voxel_deformed[:3]
-        
-#         # Convert back to RAS for final position
-#         voxel_deformed_homogeneous = np.array([voxel_deformed[0], voxel_deformed[1], voxel_deformed[2], 1])
-#         ras_final = affine @ voxel_deformed_homogeneous
-        
-#         landmark_coords_deformed.append(ras_final[:3])
-    
-#     return np.array(landmark_coords_deformed)
-
-
-# def track_landmarks_through_deformation(landmark_coords_ras, affine, deformation_type):
-#     """
-#     Apply the exact same RAS-space deformation to landmarks as we apply to mesh vertices.
-#     """
-#     return simulate_deformation(landmark_coords_ras, deformation_type)
 
 def deform_landmarks_voxel_space(landmark_voxels, displacement_field):
     """
@@ -592,8 +439,21 @@ def voxel_to_ras(vox_points, affine):
         pts.append(r[:3])
     return np.array(pts)
 
+def get_landmark_coords(landmarks_data):
+    landmark_coords = []
+    # Get original landmark positions
+    landmark_names = []
 
-def visualize_displacement(sphere_path, landmarks_path, deformation_type='compression',
+    for name, coords in landmarks_data['landmarks'].items():
+        landmark_names.append(name)
+        landmark_coords.append(coords)
+    
+    landmark_coords = np.array(landmark_coords)
+
+    return landmark_coords, landmark_names
+
+
+def displacement(sphere_path, landmarks_path, deformation_type='compression',
                           output_html=None, show_surface=True, mesh_downsample=2,
                           mesh_opacity=0.4, save_deformed_volume=True, 
                           save_landmarks=True, save_disp_field=True):
@@ -605,19 +465,14 @@ def visualize_displacement(sphere_path, landmarks_path, deformation_type='compre
         output_html = f'GeometricTestCase/displacement_{deformation_type}.html'
     
     # Load data
-    print("Loading data...")
+    #print("Loading data...")
     sphere_img, sphere_data, affine, landmarks_data = load_sphere_and_landmarks(
         sphere_path, landmarks_path
     )
     
-    # Get original landmark positions
-    landmark_names = []
-    landmark_coords_original = []
-    for name, coords in landmarks_data['landmarks'].items():
-        landmark_names.append(name)
-        landmark_coords_original.append(coords)
-    
-    landmark_coords_original = np.array(landmark_coords_original)
+
+    landmark_coords_original, landmark_names_original = get_landmark_coords(landmarks_data)
+   
     
     # First deform volume so we get displacement field
     deformed_data, displacement_field = apply_deformation_to_volume_voxel_space(
@@ -636,10 +491,18 @@ def visualize_displacement(sphere_path, landmarks_path, deformation_type='compre
     landmark_coords_deformed = voxel_to_ras(landmark_vox_deformed, affine)
 
 
-
     # Calculate displacement vectors
     displacement_vectors = landmark_coords_deformed - landmark_coords_original
     displacement_magnitudes = np.linalg.norm(displacement_vectors, axis=1)
+    with open('GeometricTestCase/output.txt', 'w') as f:
+        for vec in range(len(displacement_vectors)):
+            f.write(f"Landmark {landmark_names_original[vec]}:\n")
+            f.write(f"  Displacement vector: {displacement_vectors[vec]}\n")
+            f.write(f"  Deformed coords: {landmark_coords_deformed[vec]}\n")
+            f.write(f"  Original coords: {landmark_coords_original[vec]}\n")
+            f.write(f"  Magnitude: {displacement_magnitudes[vec]:.4f}\n")
+            f.write("\n")
+
     
     # Print statistics
     print(f"\nDisplacement Statistics:")
@@ -654,13 +517,13 @@ def visualize_displacement(sphere_path, landmarks_path, deformation_type='compre
     if save_landmarks:
         print(f"\nSaving deformed landmarks...")
         landmarks_json_path, landmarks_fcsv_path = save_deformed_landmarks(
-            landmark_names, 
+            landmark_names_original, 
             landmark_coords_deformed, 
             deformation_type,
             landmarks_data
         )
-        print(f"  ✓ Saved JSON: {landmarks_json_path}")
-        print(f"  ✓ Saved FCSV: {landmarks_fcsv_path}")
+        # print(f"  Saved JSON: {landmarks_json_path}")
+        # print(f"  Saved FCSV: {landmarks_fcsv_path}")
     
     # Save deformed volume and displacement field if landm
     deformed_volume_path = None
@@ -668,38 +531,55 @@ def visualize_displacement(sphere_path, landmarks_path, deformation_type='compre
  
     if save_deformed_volume:
         deformed_volume_path = save_deformed_sphere(sphere_img, deformed_data, deformation_type)
-        print(f"  ✓ Saved deformed sphere to: {deformed_volume_path}")
+        #print(f"  Saved deformed sphere to: {deformed_volume_path}")
     
     if save_disp_field:
         displacement_field_path = save_displacement_field(displacement_field, affine, deformation_type)
-        print(f"  ✓ Saved displacement field to: {displacement_field_path}")
+        #print(f"  Saved displacement field to: {displacement_field_path}")
 
-    # OPTIONAL: Verify landmarks are on/near surface
-    if save_deformed_volume or save_disp_field:
-        print("\nVerifying landmark positions on deformed surface...")
-        inv_affine = np.linalg.inv(affine)
-        for i, (name, ras_coord) in enumerate(zip(landmark_names, landmark_coords_deformed)):
-            # Convert to voxel coordinates
-            ras_homogeneous = np.array([ras_coord[0], ras_coord[1], ras_coord[2], 1])
-            #voxel = inv_affine @ ras_homogeneous
-            #voxel = voxel[:3].astype(int)
-            voxel = ras_to_voxel(landmark_coords_deformed[i:i+1], affine)[0]
-            voxel = voxel.astype(int)
-            # Check if on surface (within bounds)
-            if (0 <= voxel[0] < deformed_data.shape[0] and 
-                0 <= voxel[1] < deformed_data.shape[1] and 
-                0 <= voxel[2] < deformed_data.shape[2]):
-                voxel_value = deformed_data[voxel[0], voxel[1], voxel[2]]
-                status = "ON SURFACE" if voxel_value > 0.5 else "OFF SURFACE"
-                print(f"  {name:30s}: {status} (value={voxel_value:.3f})")
-            else:
-                print(f"  {name:30s}: OUT OF BOUNDS")
+
+    # # OPTIONAL: Verify landmarks are on/near surface
+    # if save_deformed_volume or save_disp_field:
+    #     print("\nVerifying landmark positions on deformed surface...")
+    #     inv_affine = np.linalg.inv(affine)
+    #     for i, (name, ras_coord) in enumerate(zip(landmark_names_original, landmark_coords_deformed)):
+    #         # Convert to voxel coordinates
+    #         ras_homogeneous = np.array([ras_coord[0], ras_coord[1], ras_coord[2], 1])
+    #         #voxel = inv_affine @ ras_homogeneous
+    #         #voxel = voxel[:3].astype(int)
+    #         voxel = ras_to_voxel(landmark_coords_deformed[i:i+1], affine)[0]
+    #         voxel = voxel.astype(int)
+    #         # Check if on surface (within bounds)
+    #         if (0 <= voxel[0] < deformed_data.shape[0] and 
+    #             0 <= voxel[1] < deformed_data.shape[1] and 
+    #             0 <= voxel[2] < deformed_data.shape[2]):
+    #             voxel_value = deformed_data[voxel[0], voxel[1], voxel[2]]
+    #             status = "ON SURFACE" if voxel_value > 0.5 else "OFF SURFACE"
+    #             print(f"  {name:30s}: {status} (value={voxel_value:.3f})")
+    #         else:
+    #             print(f"  {name:30s}: OUT OF BOUNDS")
+    return displacement_vectors, displacement_magnitudes, deformed_volume_path, displacement_field_path, landmarks_json_path, landmarks_fcsv_path
+
+
+
     
+def createVisualization(sphere_path, landmarks_path, deformation_path, deformed_landmark_path, displacement_field_path, displacement_vectors, displacement_magnitudes, deformation_type='compression',
+                          show_surface=True, mesh_downsample=1,
+                          mesh_opacity=0.4):
     # Rest of the visualization code remains the same...
     # Create figure
     print("\nCreating visualization...")
     fig = go.Figure()
     
+    sphere_img, sphere_data, affine, landmarks_data = load_sphere_and_landmarks(
+        sphere_path, landmarks_path
+    )
+
+    deformed_sphere_img, deformed_sphere_data, deformed_affine, deformed_landmarks_data = load_sphere_and_landmarks(
+        deformation_path, deformed_landmark_path
+    )
+
+    (di, dj, dk), displacement_affine = load_displacement_field(displacement_field_path)
     # Add surfaces if requested
     if show_surface:
         print(f"  Extracting mesh surfaces (downsample factor: {mesh_downsample})...")
@@ -723,19 +603,23 @@ def visualize_displacement(sphere_path, landmarks_path, deformation_type='compre
             lightposition=dict(x=100, y=100, z=100)
         ))
         
+        landmark_coords_original, landmark_names  = get_landmark_coords(landmarks_data)
+        landmark_coords_deformed, landmark_names_deformed  = get_landmark_coords(deformed_landmarks_data)
+
+
         # Deformed surface mesh
-        print("  Applying deformation to mesh...")
         #verts_deformed = voxel_space_deformation(verts_ras, deformation_type)
         # Convert mesh vertices from RAS → voxel
         verts_vox = ras_to_voxel(verts_ras, affine)
 
         # Interpolate displacement for each mesh vertex
-        di, dj, dk = displacement_field
+        #(di, dj, dk) = displacement_field
         disp_i = map_coordinates(di, verts_vox.T, order=1, mode="nearest")
         disp_j = map_coordinates(dj, verts_vox.T, order=1, mode="nearest")
         disp_k = map_coordinates(dk, verts_vox.T, order=1, mode="nearest")
 
         verts_vox_deformed = verts_vox + np.vstack([disp_i, disp_j, disp_k]).T
+
 
         # Convert back voxel → RAS
         verts_deformed = voxel_to_ras(verts_vox_deformed, affine)
@@ -823,7 +707,7 @@ def visualize_displacement(sphere_path, landmarks_path, deformation_type='compre
     fig.update_layout(
         title=dict(
             text=f'Displacement Visualization: {deformation_type.capitalize()} Deformation<br>' +
-                 f'<sub>Landmarks tracked through deformation field - guaranteed accuracy for registration</sub>',
+                 f'<sub>Compression: +20 (X), +15 (Y), -10 (Z) </sub>',
             x=0.5,
             xanchor='center'
         ),
@@ -840,31 +724,12 @@ def visualize_displacement(sphere_path, landmarks_path, deformation_type='compre
         legend=dict(x=0.7, y=0.9)
     )
     
-    # Save
-    fig.write_html(output_html)
-    
+    # Save    
     # Print individual displacements
     print(f"\nIndividual Landmark Displacements:")
     for i, name in enumerate(landmark_names):
-        print(f"  {name:30s}: {displacement_magnitudes[i]:6.2f} mm")
+        print(f"  {name:30s}: {displacement_magnitudes[i]:6.2f} voxels")
     
-    # Print summary
-    print(f"\n{'='*70}")
-    print("OUTPUT FILES:")
-    print(f"{'='*70}")
-    print(f"  Visualization: {output_html}")
-    if save_deformed_volume:
-        print(f"  Deformed sphere: {deformed_volume_path}")
-    if save_disp_field:
-        print(f"  Displacement field: {displacement_field_path}")
-    if save_landmarks:
-        print(f"  Deformed landmarks (JSON): {landmarks_json_path}")
-        print(f"  Deformed landmarks (FCSV): {landmarks_fcsv_path}")
-    print(f"{'='*70}")
-    print("\nNOTE: Landmarks tracked through same deformation as volume")
-    print("      This ensures displacement vectors accurately represent the")
-    print("      deformation field for registration validation.")
-    print(f"{'='*70}")
     
     # Optionally show
     try:
@@ -872,264 +737,8 @@ def visualize_displacement(sphere_path, landmarks_path, deformation_type='compre
     except:
         print("  (Could not auto-open browser, please open the HTML file manually)")
     
-    return fig, displacement_vectors, displacement_magnitudes, deformed_volume_path, displacement_field_path, landmarks_json_path, landmarks_fcsv_path
+    return fig#, #displacement_vectors, displacement_magnitudes, deformed_volume_path, displacement_field_path, landmarks_json_path, landmarks_fcsv_path
 
-# def visualize_displacement(sphere_path, landmarks_path, deformation_type='compression',
-#                           output_html=None, show_surface=True, mesh_downsample=2,
-#                           mesh_opacity=0.4, save_deformed_volume=True, 
-#                           save_landmarks=True, save_disp_field=True):
-#     """
-#     Create interactive displacement visualization with mesh surfaces
-    
-#     Parameters:
-#     -----------
-#     sphere_path : str
-#         Path to sphere NIfTI file
-#     landmarks_path : str
-#         Path to landmarks JSON file
-#     deformation_type : str
-#         Type of deformation to simulate
-#     output_html : str
-#         Output HTML filename (default: displacement_{type}.html)
-#     show_surface : bool
-#         Whether to show sphere surfaces (can be slow for large surfaces)
-#     mesh_downsample : int
-#         Downsample factor for mesh (higher = faster, lower quality)
-#         1 = full resolution, 2 = half resolution (recommended), 3+ = faster
-#     mesh_opacity : float
-#         Opacity of mesh surfaces (0-1, default 0.4)
-#     save_deformed_volume : bool
-#         Whether to save deformed sphere as NIfTI file (default True)
-#     save_landmarks : bool
-#         Whether to save deformed landmarks as JSON and FCSV (default True)
-#     save_disp_field : bool
-#         Whether to save displacement field as NIfTI (default True)
-#     """
-    
-#     if output_html is None:
-#         output_html = f'GeometricTestCase/displacement_{deformation_type}.html'
-    
-#     # Load data
-#     print("Loading data...")
-#     sphere_img, sphere_data, affine, landmarks_data = load_sphere_and_landmarks(
-#         sphere_path, landmarks_path
-#     )
-    
-#     # Get original landmark positions
-#     landmark_names = []
-#     landmark_coords_original = []
-#     for name, coords in landmarks_data['landmarks'].items():
-#         landmark_names.append(name)
-#         landmark_coords_original.append(coords)
-    
-#     landmark_coords_original = np.array(landmark_coords_original)
-    
-#     # Apply deformation to landmarks
-#     print(f"Applying {deformation_type} deformation...")
-#     landmark_coords_deformed = simulate_deformation(landmark_coords_original, deformation_type)
-    
-#     # Calculate displacement vectors
-#     displacement_vectors = landmark_coords_deformed - landmark_coords_original
-#     displacement_magnitudes = np.linalg.norm(displacement_vectors, axis=1)
-    
-#     # Print statistics
-#     print(f"\nDisplacement Statistics:")
-#     print(f"  Mean: {np.mean(displacement_magnitudes):.2f} mm")
-#     print(f"  Max:  {np.max(displacement_magnitudes):.2f} mm")
-#     print(f"  Min:  {np.min(displacement_magnitudes):.2f} mm")
-#     print(f"  Std:  {np.std(displacement_magnitudes):.2f} mm")
-    
-#     # Save deformed landmarks if requested
-#     landmarks_json_path = None
-#     landmarks_fcsv_path = None
-#     if save_landmarks:
-#         print(f"\nSaving deformed landmarks...")
-#         landmarks_json_path, landmarks_fcsv_path = save_deformed_landmarks(
-#             landmark_names, 
-#             landmark_coords_deformed, 
-#             deformation_type,
-#             landmarks_data
-#         )
-#         print(f"  ✓ Saved JSON: {landmarks_json_path}")
-#         print(f"  ✓ Saved FCSV: {landmarks_fcsv_path}")
-    
-#     # Save deformed volume and displacement field if requested
-#     deformed_volume_path = None
-#     displacement_field_path = None
-#     if save_deformed_volume or save_disp_field:
-#         print(f"\nCreating deformed volume...")
-#         deformed_data, displacement_field = apply_deformation_to_volume(sphere_data, affine, deformation_type)
-        
-#         if save_deformed_volume:
-#             deformed_volume_path = save_deformed_sphere(sphere_img, deformed_data, deformation_type)
-#             print(f"  ✓ Saved deformed sphere to: {deformed_volume_path}")
-        
-#         if save_disp_field:
-#             displacement_field_path = save_displacement_field(displacement_field, affine, deformation_type)
-#             print(f"  ✓ Saved displacement field to: {displacement_field_path}")
-    
-#     # Create figure
-#     print("\nCreating visualization...")
-#     fig = go.Figure()
-    
-#     # Add surfaces if requested
-#     if show_surface:
-#         print(f"  Extracting mesh surfaces (downsample factor: {mesh_downsample})...")
-#         verts_ras, faces = extract_mesh_surface(sphere_data, affine, downsample_factor=mesh_downsample)
-#         print(f"    Original mesh: {len(verts_ras)} vertices, {len(faces)} faces")
-        
-#         # Original surface mesh
-#         fig.add_trace(go.Mesh3d(
-#             x=verts_ras[:, 0],
-#             y=verts_ras[:, 1],
-#             z=verts_ras[:, 2],
-#             i=faces[:, 0],
-#             j=faces[:, 1],
-#             k=faces[:, 2],
-#             color='lightgray',
-#             opacity=mesh_opacity * 0.7,  # Slightly more transparent for original
-#             name='Original Sphere',
-#             hoverinfo='skip',
-#             flatshading=True,
-#             lighting=dict(ambient=0.5, diffuse=0.8, specular=0.2),
-#             lightposition=dict(x=100, y=100, z=100)
-#         ))
-        
-#         # Deformed surface mesh
-#         print("  Applying deformation to mesh...")
-#         verts_deformed = simulate_deformation(verts_ras, deformation_type)
-        
-#         fig.add_trace(go.Mesh3d(
-#             x=verts_deformed[:, 0],
-#             y=verts_deformed[:, 1],
-#             z=verts_deformed[:, 2],
-#             i=faces[:, 0],
-#             j=faces[:, 1],
-#             k=faces[:, 2],
-#             color='lightblue',
-#             opacity=mesh_opacity,
-#             name='Deformed Sphere',
-#             hoverinfo='skip',
-#             flatshading=True,
-#             lighting=dict(ambient=0.5, diffuse=0.8, specular=0.2),
-#             lightposition=dict(x=100, y=100, z=100)
-#         ))
-    
-#     # Add original landmarks
-#     fig.add_trace(go.Scatter3d(
-#         x=landmark_coords_original[:, 0],
-#         y=landmark_coords_original[:, 1],
-#         z=landmark_coords_original[:, 2],
-#         mode='markers',
-#         marker=dict(size=8, color='darkred', symbol='circle', 
-#                    line=dict(color='black', width=1)),
-#         name='Original Landmarks',
-#         text=landmark_names,
-#         hovertemplate='<b>%{text}</b><br>Original<br>X: %{x:.2f}<br>Y: %{y:.2f}<br>Z: %{z:.2f}<extra></extra>'
-#     ))
-    
-#     # Add deformed landmarks
-#     fig.add_trace(go.Scatter3d(
-#         x=landmark_coords_deformed[:, 0],
-#         y=landmark_coords_deformed[:, 1],
-#         z=landmark_coords_deformed[:, 2],
-#         mode='markers',
-#         marker=dict(size=8, color='red', symbol='diamond',
-#                    line=dict(color='darkred', width=1)),
-#         name='Deformed Landmarks',
-#         text=landmark_names,
-#         hovertemplate='<b>%{text}</b><br>Deformed<br>X: %{x:.2f}<br>Y: %{y:.2f}<br>Z: %{z:.2f}<extra></extra>'
-#     ))
-    
-#     # Add displacement vectors as arrows
-#     print("  Adding displacement arrows...")
-#     for i in range(len(landmark_coords_original)):
-#         orig = landmark_coords_original[i]
-#         deform = landmark_coords_deformed[i]
-        
-#         # Create arrow line
-#         fig.add_trace(go.Scatter3d(
-#             x=[orig[0], deform[0]],
-#             y=[orig[1], deform[1]],
-#             z=[orig[2], deform[2]],
-#             mode='lines',
-#             line=dict(color='red', width=5),
-#             showlegend=False,
-#             hovertemplate=f'<b>{landmark_names[i]}</b><br>' +
-#                          f'Displacement: {displacement_magnitudes[i]:.2f} mm<br>' +
-#                          f'Vector: [{displacement_vectors[i,0]:.2f}, {displacement_vectors[i,1]:.2f}, {displacement_vectors[i,2]:.2f}]<extra></extra>'
-#         ))
-        
-#         # Add cone at the end of arrow
-#         direction = displacement_vectors[i]
-#         direction_normalized = direction / (np.linalg.norm(direction) + 1e-10)
-        
-#         fig.add_trace(go.Cone(
-#             x=[deform[0]],
-#             y=[deform[1]],
-#             z=[deform[2]],
-#             u=[direction_normalized[0]],
-#             v=[direction_normalized[1]],
-#             w=[direction_normalized[2]],
-#             colorscale=[[0, 'red'], [1, 'red']],
-#             showscale=False,
-#             sizemode='absolute',
-#             sizeref=2.5,
-#             showlegend=False,
-#             hoverinfo='skip'
-#         ))
-    
-#     # Update layout
-#     fig.update_layout(
-#         title=dict(
-#             text=f'Displacement Visualization: {deformation_type.capitalize()} Deformation<br>' +
-#                  f'<sub>Mesh surfaces with displacement vectors from original (dark red) to deformed (red diamonds)</sub>',
-#             x=0.5,
-#             xanchor='center'
-#         ),
-#         scene=dict(
-#             xaxis=dict(title='X (Right) [mm]', backgroundcolor="white", gridcolor="lightgray"),
-#             yaxis=dict(title='Y (Anterior) [mm]', backgroundcolor="white", gridcolor="lightgray"),
-#             zaxis=dict(title='Z (Superior) [mm]', backgroundcolor="white", gridcolor="lightgray"),
-#             aspectmode='data',
-#             camera=dict(eye=dict(x=1.5, y=1.5, z=1.5))
-#         ),
-#         width=1000,
-#         height=800,
-#         showlegend=True,
-#         legend=dict(x=0.7, y=0.9)
-#     )
-    
-#     # Save
-#     fig.write_html(output_html)
-#     #print(f"\n✓ Saved displacement visualization to: {output_html}")
-    
-#     # Print individual displacements
-#     print(f"\nIndividual Landmark Displacements:")
-#     for i, name in enumerate(landmark_names):
-#         print(f"  {name:30s}: {displacement_magnitudes[i]:6.2f} mm")
-    
-#     # Print summary
-#     print(f"\n{'='*70}")
-#     print("OUTPUT FILES:")
-#     print(f"{'='*70}")
-#     print(f"  Visualization: {output_html}")
-#     if save_deformed_volume:
-#         print(f"  Deformed sphere: {deformed_volume_path}")
-#     if save_disp_field:
-#         print(f"  Displacement field: {displacement_field_path}")
-#     if save_landmarks:
-#         print(f"  Deformed landmarks (JSON): {landmarks_json_path}")
-#         print(f"  Deformed landmarks (FCSV): {landmarks_fcsv_path}")
-#     print(f"{'='*70}")
-    
-#     # Optionally show
-#     try:
-#         fig.show()
-#     except:
-#         print("  (Could not auto-open browser, please open the HTML file manually)")
-    
-#     return fig, displacement_vectors, displacement_magnitudes, deformed_volume_path, displacement_field_path, landmarks_json_path, landmarks_fcsv_path
 
 
 if __name__ == "__main__":
@@ -1148,16 +757,10 @@ if __name__ == "__main__":
         print(f"Valid types: {', '.join(valid_types)}")
         sys.exit(1)
     
-    print("="*70)
-    print("DISPLACEMENT FIELD VISUALIZATION (MESH VERSION)")
-    print("="*70)
-    print(f"Sphere: {sphere_path}")
-    print(f"Landmarks: {landmarks_path}")
-    print(f"Deformation: {deformation_type}")
-    print("="*70)
+
     
     # Create visualization with mesh surfaces and save deformed data
-    results = visualize_displacement(
+    results = displacement(
         sphere_path, 
         landmarks_path, 
         deformation_type,
@@ -1168,31 +771,20 @@ if __name__ == "__main__":
         save_landmarks=True,            # Set to False to skip saving deformed landmarks
         save_disp_field=True            # Set to False to skip saving displacement field
     )
+
+
     
-    fig, vectors, magnitudes, deformed_path, disp_field_path, landmarks_json, landmarks_fcsv = results
+    displacement_vectors, displacement_magnitudes, deformed_path, disp_field_path, deformed_landmarks_json, deformed_landmarks_fcsv = results
+    createVisualization(
+        sphere_path,
+        landmarks_path,
+        deformed_path,
+        deformed_landmarks_json,   
+        disp_field_path,
+        displacement_vectors,
+        displacement_magnitudes, 
+        deformation_type='compression',
+        show_surface=True,
+        mesh_downsample=1,
+        mesh_opacity=0.4)
     
-    print("="*70)
-    print("DONE!")
-    print("="*70)
-    print("\nVisualization Parameters:")
-    print("  - Surface type: Smooth mesh (marching cubes)")
-    print("  - Mesh downsample: 2 (balanced quality/speed)")
-    print("  - Mesh opacity: 0.4")
-    print("  - Deformed volume: Saved (with trilinear interpolation)")
-    print("  - Displacement field: Saved (4D NIfTI)")
-    print("  - Deformed landmarks: Saved (JSON + FCSV)")
-    print("\nTo customize, edit the visualize_displacement() call:")
-    print("  - mesh_downsample: 1 (high quality) to 4 (fast)")
-    print("  - mesh_opacity: 0.0 (transparent) to 1.0 (opaque)")
-    print("  - show_surface: False (hide surfaces, show only landmarks)")
-    print("  - save_deformed_volume: False (skip saving deformed sphere)")
-    print("  - save_landmarks: False (skip saving deformed landmarks)")
-    print("  - save_disp_field: False (skip saving displacement field)")
-    print("\nTip: You can modify the simulate_deformation() function")
-    print("     to implement your own custom deformations.")
-    print(f"\nAll files can be loaded in 3D Slicer:")
-    print(f"  - Original: {sphere_path}")
-    print(f"  - Deformed: {deformed_path}")
-    print(f"  - Displacement field: {disp_field_path}")
-    print(f"  - Original landmarks: {landmarks_path}")
-    print(f"  - Deformed landmarks: {landmarks_fcsv}")
