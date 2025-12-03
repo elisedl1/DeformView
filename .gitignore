@@ -65,3 +65,6 @@ desktop.ini
 *.mrml.scene
 *.fcsv
 *.mrb
+GeometricTestCase/displacement_field_compression.nrrd
+GeometricTestCase/SphereData/displacement_field_compression.h5
+ BrainShiftModule/lib/python3.12/site-packages/*
