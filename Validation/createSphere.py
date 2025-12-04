@@ -1,11 +1,10 @@
 import numpy as np
 import nibabel as nib
 import json
-
-
-matrix_size = 128  # Size of volume
+import os
+matrix_size = 256  # Size of volume
 voxel_size = 1.0   # Voxel spacing in mm
-sphere_radius = 40  # Radius in voxels
+sphere_radius = 60  # Radius in voxels
 
 # Create coordinate grids
 center = matrix_size // 2
@@ -26,6 +25,7 @@ affine[2, 3] = -center * voxel_size
 
 # Save sphere as NIfTI
 nifti_img = nib.Nifti1Image(sphere, affine)
+os.makedirs("GeometricTestCase", exist_ok=True)
 nifti_img.to_filename('GeometricTestCase/sphere.nii.gz') # BrainShiftModuelValidation folder
 
 print(f"Sphere created with:")
@@ -83,7 +83,3 @@ print("\nLandmarks created:")
 for name, coords in landmarks_ras.items():
     print(f"  {name}: [{coords[0]:.2f}, {coords[1]:.2f}, {coords[2]:.2f}] mm (RAS)")
 
-print("\nFiles created:")
-print("  - sphere.nii.gz (NIfTI image)")
-print("  - sphere_landmarks.fcsv (3D Slicer fiducial file)")
-print("  - sphere_landmarks.json (JSON format for reference)")
