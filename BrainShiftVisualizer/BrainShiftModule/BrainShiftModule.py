@@ -141,48 +141,19 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         uiWidget = slicer.util.loadUI(self.resourcePath("UI/BrainShiftModule.ui"))
         self.layout.addWidget(uiWidget)
         self.ui = slicer.util.childWidgetVariables(uiWidget)
+        # Hide the uiWidget so it doesn't take up space
+        uiWidget.hide()
 
         # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
         # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
         # "setMRMLScene(vtkMRMLScene*)" slot.
         uiWidget.setMRMLScene(slicer.mrmlScene)
 
-        # === SECTION 1 IMAGES LOADING ===
+        # === DEFINE UI!!!S ===
+        self.UIinstance()
+       
 
-        # Section 1: INPUT IMAGES (always visible, non-collapsible)
-        inputGroup = qt.QGroupBox("Input Images")
-        inputGroup.setStyleSheet("QGroupBox { font-weight: bold; font-size: 14px; margin-top: 10px; }")
-        self.layout.addWidget(inputGroup)
-        
-        inputLayout = qt.QFormLayout(inputGroup)
-        inputLayout.setContentsMargins(15, 15, 15, 15)
-        inputLayout.setSpacing(8)
-        
-        inputLayout.addRow("Moving Image:", self.ui.referenceVolume)
-        inputLayout.addRow("Fixed Image:", self.ui.backgroundVolume)
-        inputLayout.addRow("Transformation:", self.ui.transformNode)
-        inputLayout.addRow("Specify Output Volume:", self.ui.displacementMagnitudeVolume)
-        inputLayout.addRow(" ", self.ui.applyButton)
-
-        
-        # Section 2: PROCESSING (always visible)
-        processingGroup = qt.QGroupBox("Processing")
-        processingGroup.setStyleSheet("QGroupBox { font-weight: bold; font-size: 14px; margin-top: 10px; }")
-        self.layout.addWidget(processingGroup)
-        
-        processingLayout = qt.QVBoxLayout(processingGroup)
-        processingLayout.setContentsMargins(15, 15, 15, 15)
-        processingLayout.setSpacing(8)
-        
-        outputLayout = qt.QHBoxLayout()
-        outputLayout.addWidget(qt.QLabel("Load Displacement Field for Visualization:"))
-        outputLayout.addWidget(self.ui.loadedTransformVolume)
-        outputLayout.addWidget(self.ui.colorMapSelector)
-        processingLayout.addLayout(outputLayout)
-
-        processingLayout.addWidget(self.ui.loadDisplacementVolumeButton)
-
-
+        #--- Define the connectivity ---
 
         # set the scene for each individual node widget
         self.ui.referenceVolume.setMRMLScene(slicer.mrmlScene)
@@ -338,6 +309,165 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
 
 
+
+    def UIinstance(self):
+        # === SECTION 1: IMAGES LOADING ===
+
+        inputGroup = qt.QGroupBox("Input Images")
+        inputGroup.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 14px;
+                margin-top: 15px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        self.layout.addWidget(inputGroup)
+
+        inputLayout = qt.QFormLayout(inputGroup)
+        inputLayout.setContentsMargins(20, 25, 20, 20)  # Increased margins
+        inputLayout.setSpacing(12)  # Increased spacing between rows
+        inputLayout.setVerticalSpacing(12)  # Vertical spacing between form rows
+        inputLayout.setLabelAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)  # Right-align labels
+
+        inputLayout.addRow("Moving Image:", self.ui.referenceVolume)
+        inputLayout.addRow("Fixed Image:", self.ui.backgroundVolume)
+        inputLayout.addRow("Transformation:", self.ui.transformNode)
+        inputLayout.addRow("Output Volume:", self.ui.displacementMagnitudeVolume)
+
+        # Add some space before the button
+        inputLayout.addRow("", qt.QWidget())  # Empty spacer row
+        inputLayout.addRow("", self.ui.applyButton)
+
+
+        # === SECTION 2: PROCESSING ===
+
+        processingGroup = qt.QGroupBox("Displacement Field Visualization")
+        processingGroup.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 14px;
+                margin-top: 15px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        self.layout.addWidget(processingGroup)
+
+        processingLayout = qt.QFormLayout(processingGroup)  # Use QFormLayout for consistency
+        processingLayout.setContentsMargins(20, 25, 20, 20)
+        processingLayout.setSpacing(12)
+        processingLayout.setVerticalSpacing(12)
+        processingLayout.setLabelAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)
+
+        processingLayout.addRow("Displacement Field:", self.ui.loadedTransformVolume)
+        processingLayout.addRow("Color Map:", self.ui.colorMapSelector)
+        processingLayout.addRow("", self.ui.loadDisplacementVolumeButton)
+
+
+        # === SECTION 3: LANDMARKS ===
+
+        landmarkGroup = qt.QGroupBox("Landmark Analysis")
+        landmarkGroup.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 14px;
+                margin-top: 15px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        self.layout.addWidget(landmarkGroup)
+
+        landmarkLayout = qt.QFormLayout(landmarkGroup)
+        landmarkLayout.setContentsMargins(20, 25, 20, 20)
+        landmarkLayout.setSpacing(12)
+        landmarkLayout.setVerticalSpacing(12)
+        landmarkLayout.setLabelAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)
+
+        landmarkLayout.addRow("Convert .tag File:", self.ui.ConvertTagFCSVButton)
+        landmarkLayout.addRow("Select Landmarks:", self.ui.LandmarkSelectorComboBox)
+        landmarkLayout.addRow("Load Landmarks:", self.ui.LoadExpertLabelsButton)
+
+        # Add separator space
+        landmarkLayout.addRow("", qt.QWidget())
+
+        # Results section within landmarks
+        self.ui.selectedLandmarks.setReadOnly(True)
+        self.ui.landmarkEuclidianDistance.setReadOnly(True)
+        self.ui.selectedLandmarks.setStyleSheet("QLineEdit { background-color:gray; color: #333; }")
+        self.ui.landmarkEuclidianDistance.setStyleSheet("QLineEdit { background-color:gray; color: #333; }")
+        landmarkLayout.addRow("Active Landmarks:", self.ui.selectedLandmarks)
+        landmarkLayout.addRow("Distance (mm):", self.ui.landmarkEuclidianDistance)
+
+
+        # === SECTION 4: VISUALIZATION SETTINGS ===
+
+        vizGroup = qt.QGroupBox("Display Settings")
+        vizGroup.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 14px;
+                margin-top: 15px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        self.layout.addWidget(vizGroup)
+
+        vizLayout = qt.QFormLayout(vizGroup)
+        vizLayout.setContentsMargins(20, 25, 20, 20)
+        vizLayout.setSpacing(12)
+        vizLayout.setVerticalSpacing(12)
+        vizLayout.setLabelAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)
+
+        vizLayout.addRow(self.ui.enableHoverDisplayCheckbox)
+        vizLayout.addRow(self.ui.enableUsBorderDisplay)
+
+        # Opacity with better layout
+        opacityLayout = qt.QHBoxLayout()
+        opacityLayout.addWidget(self.ui.opacitySlider, 1)  # Stretch factor
+        opacityLayout.addSpacing(10)
+        opacityLayout.addWidget(self.ui.opacityValue)
+        vizLayout.addRow("Opacity:", opacityLayout)
+
+        # Threshold with labels
+        thresLayout = qt.QVBoxLayout()
+        thresLayout.setSpacing(5)
+
+        sliderLayout = qt.QHBoxLayout()
+        sliderLayout.addWidget(self.ui.thresholdSlider)
+        thresLayout.addLayout(sliderLayout)
+
+        spinBoxLayout = qt.QHBoxLayout()
+        spinBoxLayout.addWidget(qt.QLabel("Min:"))
+        spinBoxLayout.addWidget(self.ui.thresholdMinSpinBox)
+        spinBoxLayout.addSpacing(10)
+        spinBoxLayout.addWidget(qt.QLabel("Max:"))
+        spinBoxLayout.addWidget(self.ui.thresholdMaxSpinBox)
+        thresLayout.addLayout(spinBoxLayout)
+
+        vizLayout.addRow("Threshold Range:", thresLayout)
+
+        # Add stretch at the end
+        self.layout.addStretch(1)
 
 
         
