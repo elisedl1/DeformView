@@ -195,7 +195,18 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         jacobianColorNode = self.createJacobianColorNode()
 
         self.ui.colorMapSelector.setMRMLScene(slicer.mrmlScene)
-        self.ui.colorMapSelector.setMRMLScene(slicer.mrmlScene)
+
+        # set default to ColdToHotRainbow
+        coldToHotNode = slicer.mrmlScene.GetFirstNodeByName("ColdToHotRainbow")
+        if not coldToHotNode:
+            coldToHotNode = slicer.vtkMRMLColorTableNode()
+            coldToHotNode.SetTypeToColdToHot()
+            coldToHotNode.SetName("ColdToHotRainbow")
+            slicer.mrmlScene.AddNode(coldToHotNode)
+
+        # Set it as the default selected node in the combo box
+        self.ui.colorMapSelector.setCurrentNode(coldToHotNode)
+
         self.ui.colorMapSelector.nodeTypes = [
             f"{jacobianColorNode}",
             "vtkMRMLColorTableNode",
@@ -778,7 +789,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # sync checkbox to match visibility
         self.updateHoverCheckboxFromNode()
 
-        #sync checkbox to match visibility 
+        # sync checkbox to match visibility 
         self.updateVisualizationCheckboxFromNode()
 
 
@@ -839,11 +850,11 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.setParameterNode(self.logic.getParameterNode())
         
       
-        #Reset the slice viewers to have no foreground initially on entering and reloading module - much cleaner
+        # Reset the slice viewers to have no foreground initially on entering and reloading module - much cleaner - NO LONGER DOING THIS
         layoutManager = slicer.app.layoutManager()
-        for sliceViewName in layoutManager.sliceViewNames():
-            compositeNode = layoutManager.sliceWidget(sliceViewName).mrmlSliceCompositeNode()
-            compositeNode.SetForegroundVolumeID(None)
+        # for sliceViewName in layoutManager.sliceViewNames():
+        #     compositeNode = layoutManager.sliceWidget(sliceViewName).mrmlSliceCompositeNode()
+        #     compositeNode.SetForegroundVolumeID(None)
     
         backgroundVolumeID = self._parameterNode.backgroundVolume.GetID() if self._parameterNode.backgroundVolume else None
         
@@ -1250,12 +1261,14 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         numDisplayNodes = selectedVolume.GetNumberOfDisplayNodes()      
         print(f"Number of display nodes: {numDisplayNodes}")
         print("Update 1")
-        try:
-            viridisNode = slicer.util.getNode("Viridis")
-            internalDisplayNode.SetAndObserveColorNodeID(viridisNode.GetID())
-            internalDisplayNode.Modified()
-        except slicer.util.MRMLNodeNotFoundException:
-            slicer.util.errorDisplay("Viridis colormap not found in the scene.")
+        # change to selected color
+        colorNode = self.ui.colorMapSelector.currentNode()
+        if colorNode:
+            
+            internalDisplayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            #internalDisplayNode.Modified()
+            #displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            #displayNode.Modified() #this line is directly modifying the volume - problem if incorrect volume is loaded in
 
         normalizedValue = self.ui.opacitySlider.value / 100
         internalDisplayNode.SetOpacity(normalizedValue)
@@ -1515,6 +1528,30 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 # Option 2: Or just set opacity to 0
                 # sliceComposite.SetForegroundOpacity(0.0)
 
+
+    def getCurrentDisplacementVolumeNode(self):
+        """Return the displacement volume node, creating it if necessary."""
+        volumeNode = self.ui.loadedTransformVolume.currentNode()
+        if not volumeNode:
+            # Optionally, try to auto-find an existing volume in the scene
+            for node in slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode"):
+                if "Displacement" in node.GetName():
+                    return node
+            return None
+        return volumeNode
+    
+    def getForegroundVolumeNode(self):
+        """Return the volume node currently set as foreground in any slice viewer."""
+        layoutManager = slicer.app.layoutManager()
+        for sliceName in layoutManager.sliceViewNames():
+            sliceComposite = layoutManager.sliceWidget(sliceName).mrmlSliceCompositeNode()
+            fgVolumeID = sliceComposite.GetForegroundVolumeID()
+            if fgVolumeID:
+                node = slicer.mrmlScene.GetNodeByID(fgVolumeID)
+                if node:
+                    return node
+        return None
+
                 
     def updateHoverCheckboxFromNode(self):
         # Syncs the hover display checkbox with the actual visibility of the mouse label node 
@@ -1529,23 +1566,17 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
     def updateVisualizationCheckboxFromNode(self):
-        """Update checkbox state based on current volume visibility"""
-        
-        # Check if UI is properly initialized
-        if not hasattr(self, 'ui') or not self.ui:
-            print("Warning: UI not initialized")
-            return
-        
-        volumeNode = self.ui.loadedTransformVolume.currentNode()
-        
+        """Syncs the displacement display checkbox with the actual visibility of the volume."""
+        volumeNode = self.getCurrentDisplacementVolumeNode()
         if not volumeNode:
+            self.ui.enableDisplacementVisualizationCheckbox.blockSignals(True)
+            self.ui.enableDisplacementVisualizationCheckbox.setChecked(False)
+            self.ui.enableDisplacementVisualizationCheckbox.blockSignals(False)
             return
-        
-        displayNode = volumeNode.GetDisplayNode()  
-        
+
+        displayNode = volumeNode.GetDisplayNode()
         if displayNode:
             visible = displayNode.GetVisibility2D() and volumeNode.GetDisplayVisibility()
-            print("Line 1452 Visualization visible:", visible)
             self.ui.enableDisplacementVisualizationCheckbox.blockSignals(True)
             self.ui.enableDisplacementVisualizationCheckbox.setChecked(visible)
             self.ui.enableDisplacementVisualizationCheckbox.blockSignals(False)
