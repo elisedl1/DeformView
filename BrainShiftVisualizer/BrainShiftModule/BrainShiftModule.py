@@ -1077,14 +1077,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         numDisplayNodes = selectedVolume.GetNumberOfDisplayNodes()      
         print(f"Number of display nodes: {numDisplayNodes}")
         print("Update 1")
-        # change to selected color
-        colorNode = self.ui.colorMapSelector.currentNode()
-        if colorNode:
-            
-            internalDisplayNode.SetAndObserveColorNodeID(colorNode.GetID())
-            #internalDisplayNode.Modified()
-            #displayNode.SetAndObserveColorNodeID(colorNode.GetID())
-            #displayNode.Modified() #this line is directly modifying the volume - problem if incorrect volume is loaded in
+        try:
+            viridisNode = slicer.util.getNode("Viridis")
+            internalDisplayNode.SetAndObserveColorNodeID(viridisNode.GetID())
+            internalDisplayNode.Modified()
+        except slicer.util.MRMLNodeNotFoundException:
+            slicer.util.errorDisplay("Viridis colormap not found in the scene.")
 
         normalizedValue = self.ui.opacitySlider.value / 100
         internalDisplayNode.SetOpacity(normalizedValue)
@@ -1226,6 +1224,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     #         raise Exception("could not rename landmark file")
     #     print("Renamed to: ", text1)
     #     return text1, text2
+
+
 
     def getLandmarkLabel(self):
         parent = slicer.util.mainWindow()  # safe parent for dialogs in Slicer
@@ -1550,8 +1550,8 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         displayNode.SetThreshold(0.05, 10.0)
         displayNode.SetApplyThreshold(True)
 
-        # Use Inferno color map if available
-        colorNode = slicer.util.getNode("Inferno")
+        # Use specific color map if available
+        colorNode = slicer.util.getNode("Viridis")
         if colorNode:
             displayNode.SetAndObserveColorNodeID(colorNode.GetID())
         return outputVolume
