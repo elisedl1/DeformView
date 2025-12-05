@@ -227,6 +227,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.enableHoverDisplayCheckbox.connect("toggled(bool)", self.onToggleHoverDisplay)
 
 
+        self.ui.enableDisplacementVisualizationCheckbox.setChecked(False)  # start disabled
+        self.ui.enableDisplacementVisualizationCheckbox.connect("toggled(bool)", self.onToggleDisplacementVisualizationDisplay)
+
+
 
         # self.line_edit = qt.QLineEdit(self)
         # self.layout.addWidget(self.line_edit)
@@ -381,8 +385,17 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         processingLayout.addRow("Displacement Field:", self.ui.loadedTransformVolume)
         processingLayout.addRow("Color Map:", self.ui.colorMapSelector)
-        processingLayout.addRow("", self.ui.loadDisplacementVolumeButton)
+        
 
+        visualizeVolumeLayout = qt.QHBoxLayout()
+        visualizeVolumeLayout.addWidget(self.ui.enableDisplacementVisualizationCheckbox)
+        # visualizeVolumeLayout.addSpacing(5)
+        visualizeVolumeLayout.addWidget(self.ui.loadDisplacementVolumeButton, 1)  # Stretch factor
+        #landmarkLayout.setLabelAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)
+
+        processingLayout.addRow(" ", visualizeVolumeLayout)
+        
+        
 
         # === SECTION 3: LANDMARKS ===
 
@@ -664,6 +677,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.labelMarkupNode = self.getOrCreateMouseLabelNode()
         # sync checkbox to match visibility
         self.updateHoverCheckboxFromNode()
+
+        #sync checkbox to match visibility 
+        self.updateVisualizationCheckboxFromNode()
 
 
     # def setFixedImage(self, volumeNode):
@@ -1105,6 +1121,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         self.onLoadExpertLabelsClicked()
 
+        #self.onToggleDisplacementVisualizationDisplay(True)
         
         persistentDisplayNode = selectedVolume.GetDisplayNode()
 
@@ -1152,6 +1169,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # scalarBar.SetNumberOfLabels(5)
 
         #slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
+
+        #--- Automatically turn on visualization when loading
+        self.ui.enableDisplacementVisualizationCheckbox.setChecked(True)
 
 
         # set max and min of threshold slider
@@ -1323,6 +1343,73 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.crosshairNode.RemoveObserver(self.crosshairObserverTag)
                 self.crosshairObserverTag = None
 
+    # def onToggleDisplacementVisualizationDisplay(self, enabled: bool) -> None:
+    #     print("on Displacement Visualization Toggle")
+
+    #     self.volumeNode = self.ui.loadedTransformVolume.currentNode()
+    #     displayNode = self.volumeNode.GetDisplayNode()
+
+    #     if enabled:
+    #         print("enabled")
+
+    #         # FORCE all relevant visibilities ON
+    #         self.volumeNode.SetDisplayVisibility(True)       # main visibility toggle
+    #         displayNode.SetVisibility(True)                              # fallback
+    #         displayNode.SetVisibility2D(True)
+    #         displayNode.SetVisibility3D(True)                           # i want 2D only
+    #         #displayNode.SetPointLabelsVisibility(True)                   # show text
+    #         #displayNode.SetTextScale(3.0)                                # ensure label isn't scaled to zero
+
+        
+
+    #     else:
+    #         # FORCE everything off
+    #         self.volumeNode.SetDisplayVisibility(False)
+    #         displayNode.SetVisibility(False)
+    #         displayNode.SetVisibility2D(False)
+    #         displayNode.SetVisibility3D(False)
+            #displayNode.SetPointLabelsVisibility(False)
+
+            # if self.crosshairObserverTag is not None:
+            #     self.crosshairNode.RemoveObserver(self.crosshairObserverTag)
+            #     self.crosshairObserverTag = None
+
+    def onToggleDisplacementVisualizationDisplay(self, enabled: bool) -> None:
+        print("on Displacement Visualization Toggle")
+
+        self.volumeNode = self.ui.loadedTransformVolume.currentNode()
+        
+        if not self.volumeNode:
+            return
+        
+        displayNode = self.volumeNode.GetDisplayNode()
+
+        if enabled:
+            print("enabled")
+            
+            # Show in slice views by setting foreground opacity
+            normalizedValue = self.ui.opacitySlider.value / 100
+            
+            for sliceName in slicer.app.layoutManager().sliceViewNames():
+                sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
+                sliceComposite.SetForegroundVolumeID(self.volumeNode.GetID())
+                sliceComposite.SetForegroundOpacity(normalizedValue)
+            
+            # Optional: also enable 3D visibility if needed
+            displayNode.SetVisibility3D(False)  # Keep 3D off if you only want 2D
+
+        else:
+            print("disabled")
+            
+            # Hide from slice views by setting foreground to None or opacity to 0
+            for sliceName in slicer.app.layoutManager().sliceViewNames():
+                sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
+                # Option 1: Remove as foreground entirely
+                sliceComposite.SetForegroundVolumeID(None)
+                # Option 2: Or just set opacity to 0
+                # sliceComposite.SetForegroundOpacity(0.0)
+
+                
     def updateHoverCheckboxFromNode(self):
         # Syncs the hover display checkbox with the actual visibility of the mouse label node 
         self.labelMarkupNode = self.getOrCreateMouseLabelNode()
@@ -1332,6 +1419,40 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.enableHoverDisplayCheckbox.blockSignals(True)
             self.ui.enableHoverDisplayCheckbox.setChecked(visible)
             self.ui.enableHoverDisplayCheckbox.blockSignals(False)
+
+
+
+    # def updateVisualizationCheckboxFromNode(self):
+    #     #Need to turn on or off the visualization of whichever magnitude volume is being shown 
+    #     #I think this is whichever is being shown by loadedTransformVolume
+    #     volumeNode = self.ui.loadedTransformVolume.currentNode()
+    #     displayNode = volumeNode.GetDisplayNode()
+    #     if displayNode:
+    #         visible = displayNode.GetVisibility2D() and volumeNode.GetDisplayVisibility()
+    #         self.ui.enableVisualizationCheckbox.blockSignals(True)
+    #         self.ui.enableVisualizationCheckbox.setChecked(visible)
+    #         self.ui.enableVisualizationCheckbox.blockSignals(False)
+    def updateVisualizationCheckboxFromNode(self):
+        """Update checkbox state based on current volume visibility"""
+        
+        # Check if UI is properly initialized
+        if not hasattr(self, 'ui') or not self.ui:
+            print("Warning: UI not initialized")
+            return
+        
+        volumeNode = self.ui.loadedTransformVolume.currentNode()
+        
+        if not volumeNode:
+            return
+        
+        displayNode = volumeNode.GetDisplayNode()  
+        
+        if displayNode:
+            visible = displayNode.GetVisibility2D() and volumeNode.GetDisplayVisibility()
+            print("Line 1452 Visualization visible:", visible)
+            self.ui.enableDisplacementVisualizationCheckbox.blockSignals(True)
+            self.ui.enableDisplacementVisualizationCheckbox.setChecked(visible)
+            self.ui.enableDisplacementVisualizationCheckbox.blockSignals(False)
 
         
     def getOrCreateMouseLabelNode(self):

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1920</width>
-    <height>1027</height>
+    <width>1512</width>
+    <height>916</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -196,7 +196,7 @@
      </property>
     </widget>
    </item>
-   <item row="37" column="0">
+   <item row="38" column="0">
     <widget class="QCheckBox" name="enableUsBorderDisplay">
      <property name="whatsThis">
       <string>Controls the display of ultrasound borders</string>
@@ -215,14 +215,14 @@
      </property>
     </widget>
    </item>
-   <item row="39" column="0">
+   <item row="40" column="0">
     <widget class="Line" name="line">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
      </property>
     </widget>
    </item>
-   <item row="46" column="1">
+   <item row="47" column="1">
     <widget class="QSlider" name="opacitySlider">
      <property name="whatsThis">
       <string>Opacity slider</string>
@@ -247,7 +247,7 @@
      </property>
     </widget>
    </item>
-   <item row="47" column="0">
+   <item row="48" column="0">
     <widget class="QLabel" name="opacityValue">
      <property name="font">
       <font>
@@ -259,7 +259,7 @@
      </property>
     </widget>
    </item>
-   <item row="51" column="1">
+   <item row="52" column="1">
     <widget class="ctkDoubleRangeSlider" name="thresholdSlider">
      <property name="maximum">
       <double>50.000000000000000</double>
@@ -272,7 +272,7 @@
      </property>
     </widget>
    </item>
-   <item row="52" column="1">
+   <item row="53" column="1">
     <widget class="QDoubleSpinBox" name="thresholdMinSpinBox">
      <property name="specialValueText">
       <string/>
@@ -285,14 +285,14 @@
      </property>
     </widget>
    </item>
-   <item row="53" column="1">
+   <item row="54" column="1">
     <widget class="QDoubleSpinBox" name="thresholdMaxSpinBox">
      <property name="specialValueText">
       <string/>
      </property>
     </widget>
    </item>
-   <item row="54" column="0" colspan="2">
+   <item row="55" column="0" colspan="2">
     <spacer name="verticalSpacer_3">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
@@ -306,23 +306,16 @@
     </spacer>
    </item>
    <item row="56" column="1">
-    <widget class="ctkSliderWidget" name="colourLevelSlider"/>
+    <widget class="QDoubleSpinBox" name="selectedLandmarks"/>
    </item>
    <item row="57" column="1">
-    <widget class="ctkSliderWidget" name="colourWindowSlider"/>
+    <widget class="QDoubleSpinBox" name="landmarkEuclidianDistance"/>
    </item>
-   <item row="68" column="1">
-    <spacer name="verticalSpacer_10">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
+   <item row="58" column="1">
+    <widget class="ctkSliderWidget" name="colourLevelSlider"/>
+   </item>
+   <item row="59" column="1">
+    <widget class="ctkSliderWidget" name="colourWindowSlider"/>
    </item>
    <item row="70" column="1">
     <spacer name="verticalSpacer_10">
@@ -337,11 +330,28 @@
      </property>
     </spacer>
    </item>
-   <item row="55" column="0">
-    <widget class="QLineEdit" name="selectedLandmarks"/>
+   <item row="72" column="1">
+    <spacer name="verticalSpacer_10">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
    </item>
-   <item row="56" column="0">
-    <widget class="QLineEdit" name="landmarkEuclidianDistance"/>
+   <item row="37" column="0">
+    <widget class="ctkCheckBox" name="enableDisplacementVisualizationCheckbox">
+     <property name="layoutDirection">
+      <enum>Qt::RightToLeft</enum>
+     </property>
+     <property name="text">
+      <string>Visualize</string>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
