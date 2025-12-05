@@ -206,7 +206,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # mouse displayer
         self.crosshairNode = slicer.util.getNode("Crosshair")
 
-        self.labelMarkupNode = slicer.util.getModule("Data").mrmlScene().GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
+        # self.labelMarkupNode = slicer.util.getModule("Data").mrmlScene().GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
+        self.labelMarkupNode = slicer.mrmlScene.GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
+
         if(  not self.labelMarkupNode ):
             self.labelMarkupNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "BrainShiftModule_MouseValueLabel")
             self.labelMarkupNode.AddControlPoint(0, 0, 0)
@@ -223,6 +225,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.ui.enableHoverDisplayCheckbox.setChecked(False)  # start disabled
         self.ui.enableHoverDisplayCheckbox.connect("toggled(bool)", self.onToggleHoverDisplay)
+
+
 
         # self.line_edit = qt.QLineEdit(self)
         # self.layout.addWidget(self.line_edit)
@@ -612,6 +616,11 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """Called each time the user opens this module."""
         # Make sure parameter node exists and observed
         self.initializeParameterNode()
+
+        # re-acquire or create mouse label node
+        self.labelMarkupNode = self.getOrCreateMouseLabelNode()
+        # sync checkbox to match visibility
+        self.updateHoverCheckboxFromNode()
 
 
     # def setFixedImage(self, volumeNode):
@@ -1174,24 +1183,67 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onToggleHoverDisplay(self, enabled: bool) -> None:
         print("on Toggle Hover Display")
+
+        self.labelMarkupNode = self.getOrCreateMouseLabelNode()
+        disp = self.labelMarkupNode.GetDisplayNode()
+
         if enabled:
             print("enabled")
-            self.labelMarkupNode.GetDisplayNode().SetVisibility2D(True)
-            # add observer if not already observing
+
+            # FORCE all relevant visibilities ON
+            self.labelMarkupNode.SetDisplayVisibility(True)       # main visibility toggle
+            disp.SetVisibility(True)                              # fallback
+            disp.SetVisibility2D(True)
+            disp.SetVisibility3D(False)                           # i want 2D only
+            disp.SetPointLabelsVisibility(True)                   # show text
+            disp.SetTextScale(3.0)                                # ensure label isn't scaled to zero
+
             if self.crosshairObserverTag is None:
                 self.crosshairObserverTag = self.crosshairNode.AddObserver(
                     slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent,
                     self.onMouseMoved
                 )
+
         else:
-            self.labelMarkupNode.GetDisplayNode().SetVisibility2D(False)
-            # remove observer if it exists
+            # FORCE everything off
+            self.labelMarkupNode.SetDisplayVisibility(False)
+            disp.SetVisibility(False)
+            disp.SetVisibility2D(False)
+            disp.SetVisibility3D(False)
+            disp.SetPointLabelsVisibility(False)
+
             if self.crosshairObserverTag is not None:
                 self.crosshairNode.RemoveObserver(self.crosshairObserverTag)
                 self.crosshairObserverTag = None
 
-        
+    def updateHoverCheckboxFromNode(self):
+        # Syncs the hover display checkbox with the actual visibility of the mouse label node 
+        self.labelMarkupNode = self.getOrCreateMouseLabelNode()
+        disp = self.labelMarkupNode.GetDisplayNode()
+        if disp:
+            visible = disp.GetVisibility2D() and self.labelMarkupNode.GetDisplayVisibility()
+            self.ui.enableHoverDisplayCheckbox.blockSignals(True)
+            self.ui.enableHoverDisplayCheckbox.setChecked(visible)
+            self.ui.enableHoverDisplayCheckbox.blockSignals(False)
 
+        
+    def getOrCreateMouseLabelNode(self):
+        node = slicer.mrmlScene.GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
+        if node is None:
+            node = slicer.mrmlScene.AddNewNodeByClass(
+                "vtkMRMLMarkupsFiducialNode",
+                "BrainShiftModule_MouseValueLabel"
+            )
+            node.AddControlPoint(0, 0, 0)
+            node.SetLocked(True)
+            node.SetMarkupLabelFormat("{label}")
+            node.GetDisplayNode().SetVisibility2D(False)
+            node.GetDisplayNode().SetVisibility3D(False)
+            node.SetNthControlPointLabel(0, "")
+            node.GetDisplayNode().SetColor([0.0, 0.0, 0.0])
+            node.GetDisplayNode().SetSelectedColor([0.0, 0.0, 0.0])
+            node.GetDisplayNode().GetTextProperty().SetColor(0.0, 0.0, 0.0)
+        return node
 
 
 
