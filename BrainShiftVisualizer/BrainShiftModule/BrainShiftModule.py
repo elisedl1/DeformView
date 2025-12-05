@@ -185,6 +185,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.loadedTransformVolume.nodeTypes = ["vtkMRMLScalarVolumeNode"]
         self.ui.loadedTransformVolume.setMRMLScene(slicer.mrmlScene)
 
+        self.ui.loadedTransformVolume.connect("currentNodeChanged(vtkMRMLNode*)", 
+                                          self.onTransformVolumeChanged)
         # connect
         self.ui.loadDisplacementVolumeButton.connect("clicked(bool)", self.onLoadDisplacementVolume)
 
@@ -207,19 +209,23 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.crosshairNode = slicer.util.getNode("Crosshair")
 
         # self.labelMarkupNode = slicer.util.getModule("Data").mrmlScene().GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
-        self.labelMarkupNode = slicer.mrmlScene.GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
+        #Need to dynamically set the labelMarkupNode, depending on which label is being loaded by loadDisplacementVolume
+        
+        self.labelMarkupNode = None #Set to None initially so it can be created dynamically?
 
-        if(  not self.labelMarkupNode ):
-            self.labelMarkupNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "BrainShiftModule_MouseValueLabel")
-            self.labelMarkupNode.AddControlPoint(0, 0, 0)
-            self.labelMarkupNode.SetLocked(True)
-            self.labelMarkupNode.SetMarkupLabelFormat("{label}")
-            self.labelMarkupNode.GetDisplayNode().SetVisibility2D(False)
-            self.labelMarkupNode.GetDisplayNode().SetVisibility3D(False)
-            self.labelMarkupNode.SetNthControlPointLabel(0, "")
-            self.labelMarkupNode.GetDisplayNode().SetColor([0.0, 0.0, 0.0])  # [0.0,0.0,0.0]       # Fiducial marker color
-            self.labelMarkupNode.GetDisplayNode().SetSelectedColor([0.0, 0.0, 0.0])  # [0.0, 0.0, 0.0]    # Color when selected
-            self.labelMarkupNode.GetDisplayNode().GetTextProperty().SetColor(0.0, 0.0, 0.0)  # 0,0,0 # Label **text** color (this is key!)
+        # self.labelMarkupNode = slicer.mrmlScene.GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
+
+        # if(  not self.labelMarkupNode ):
+        #     self.labelMarkupNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "BrainShiftModule_MouseValueLabel")
+        #     self.labelMarkupNode.AddControlPoint(0, 0, 0)
+        #     self.labelMarkupNode.SetLocked(True)
+        #     self.labelMarkupNode.SetMarkupLabelFormat("{label}")
+        #     self.labelMarkupNode.GetDisplayNode().SetVisibility2D(False)
+        #     self.labelMarkupNode.GetDisplayNode().SetVisibility3D(False)
+        #     self.labelMarkupNode.SetNthControlPointLabel(0, "")
+        #     self.labelMarkupNode.GetDisplayNode().SetColor([0.0, 0.0, 0.0])  # [0.0,0.0,0.0]       # Fiducial marker color
+        #     self.labelMarkupNode.GetDisplayNode().SetSelectedColor([0.0, 0.0, 0.0])  # [0.0, 0.0, 0.0]    # Color when selected
+        #     self.labelMarkupNode.GetDisplayNode().GetTextProperty().SetColor(0.0, 0.0, 0.0)  # 0,0,0 # Label **text** color (this is key!)
 
         self.crosshairObserverTag = None
 
@@ -317,11 +323,105 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-
-
-
+    def onTransformVolumeChanged(self):
+        """Called whenever a different volume is selected in loadedTransformVolume"""
+        volumeNode = self.ui.loadedTransformVolume.currentNode()
         
+        if not volumeNode:
+            return
+        
+        # Get the shared label node
+        labelNodeName = "BrainShiftModule_MouseValueLabel"
+        labelNode = slicer.mrmlScene.GetFirstNodeByName(labelNodeName)
+        
+        if not labelNode:
+            # Create it if it doesn't exist
+            self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
+            return
+        
+        # Reset the label node for the new volume
+        # Check if this volume already has a stored reference
+        labelNodeID = volumeNode.GetAttribute("BrainShiftModule_LabelNodeID")
+        
+        if not labelNodeID or labelNodeID != labelNode.GetID():
+            # Associate the shared label node with this volume
+            volumeNode.SetAttribute("BrainShiftModule_LabelNodeID", labelNode.GetID())
+        
+        # Reset label display
+        labelNode.SetNthControlPointLabel(0, "")
+        labelNode.SetNthControlPointPosition(0, 0, 0, 0)
+        
+        # Update the reference
+        self.labelMarkupNode = labelNode
 
+
+
+
+    def getOrCreateLabelNodeForCurrentVolume(self):
+        """Get or create a label node specific to the currently loaded volume"""
+        
+        volumeNode = self.ui.loadedTransformVolume.currentNode()
+        
+        # Get or create the single shared label node
+        labelNodeName = "BrainShiftModule_MouseValueLabel"
+        node = slicer.mrmlScene.GetFirstNodeByName(labelNodeName)
+        
+        if not node:
+            node = slicer.mrmlScene.AddNewNodeByClass(
+                "vtkMRMLMarkupsFiducialNode",
+                labelNodeName
+            )
+            node.AddControlPoint(0, 0, 0)
+            node.SetLocked(True)
+            node.SetMarkupLabelFormat("{label}")
+            node.GetDisplayNode().SetVisibility2D(False)
+            node.GetDisplayNode().SetVisibility3D(False)
+            node.SetNthControlPointLabel(0, "")
+            node.GetDisplayNode().SetColor([0.0, 0.0, 0.0])
+            node.GetDisplayNode().SetSelectedColor([0.0, 0.0, 0.0])
+            node.GetDisplayNode().GetTextProperty().SetColor(0.0, 0.0, 0.0)
+        
+        # Store reference on volume
+        volumeNode.SetAttribute("BrainShiftModule_LabelNodeID", node.GetID())
+        
+        return node
+        
+    # def getOrCreateLabelNodeForCurrentVolume(self):
+    #     """Get or create a label node specific to the currently loaded volume"""
+        
+    #     volumeNode = self.ui.loadedTransformVolume.currentNode()
+        
+    #     if not volumeNode:
+    #         return None
+        
+    #     # Check if volume already has an associated label node
+    #     labelNodeID = volumeNode.GetAttribute("BrainShiftModule_LabelNodeID")
+        
+    #     if labelNodeID:
+    #         node = slicer.mrmlScene.GetNodeByID(labelNodeID)
+    #         if node:
+    #             return node
+        
+    #     # Create new label node for this volume
+    #     labelNodeName = f"BrainShiftModule_MouseValueLabel_{volumeNode.GetID()}"
+    #     node = slicer.mrmlScene.AddNewNodeByClass(
+    #         "vtkMRMLMarkupsFiducialNode",
+    #         labelNodeName
+    #     )
+    #     node.AddControlPoint(0, 0, 0)
+    #     node.SetLocked(True)
+    #     node.SetMarkupLabelFormat("{label}")
+    #     node.GetDisplayNode().SetVisibility2D(False)
+    #     node.GetDisplayNode().SetVisibility3D(False)
+    #     node.SetNthControlPointLabel(0, "")
+    #     node.GetDisplayNode().SetColor([0.0, 0.0, 0.0])
+    #     node.GetDisplayNode().SetSelectedColor([0.0, 0.0, 0.0])
+    #     node.GetDisplayNode().GetTextProperty().SetColor(0.0, 0.0, 0.0)
+        
+    #     # Store reference on volume
+    #     volumeNode.SetAttribute("BrainShiftModule_LabelNodeID", node.GetID())
+        
+    #     return node
 
 
     def UIinstance(self):
@@ -674,7 +774,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.initializeParameterNode()
 
         # re-acquire or create mouse label node
-        self.labelMarkupNode = self.getOrCreateMouseLabelNode()
+        self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
         # sync checkbox to match visibility
         self.updateHoverCheckboxFromNode()
 
@@ -1108,6 +1208,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         state = self.ui.enableUsBorderDisplay.checkState()
 
+
+        #DYNAMICLALY SET THE LABEL MARKUP
+        self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
+
         #self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state, reload=True)
         
         # slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(selectedVolume)    
@@ -1172,6 +1276,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         #--- Automatically turn on visualization when loading
         self.ui.enableDisplacementVisualizationCheckbox.setChecked(True)
+        
+        self.ui.enableHoverDisplayCheckbox.setChecked(True)
 
 
         # set max and min of threshold slider
@@ -1311,7 +1417,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onToggleHoverDisplay(self, enabled: bool) -> None:
         print("on Toggle Hover Display")
 
-        self.labelMarkupNode = self.getOrCreateMouseLabelNode()
+        self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
         disp = self.labelMarkupNode.GetDisplayNode()
 
         if enabled:
@@ -1412,7 +1518,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 
     def updateHoverCheckboxFromNode(self):
         # Syncs the hover display checkbox with the actual visibility of the mouse label node 
-        self.labelMarkupNode = self.getOrCreateMouseLabelNode()
+        self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
         disp = self.labelMarkupNode.GetDisplayNode()
         if disp:
             visible = disp.GetVisibility2D() and self.labelMarkupNode.GetDisplayVisibility()
@@ -1422,16 +1528,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-    # def updateVisualizationCheckboxFromNode(self):
-    #     #Need to turn on or off the visualization of whichever magnitude volume is being shown 
-    #     #I think this is whichever is being shown by loadedTransformVolume
-    #     volumeNode = self.ui.loadedTransformVolume.currentNode()
-    #     displayNode = volumeNode.GetDisplayNode()
-    #     if displayNode:
-    #         visible = displayNode.GetVisibility2D() and volumeNode.GetDisplayVisibility()
-    #         self.ui.enableVisualizationCheckbox.blockSignals(True)
-    #         self.ui.enableVisualizationCheckbox.setChecked(visible)
-    #         self.ui.enableVisualizationCheckbox.blockSignals(False)
     def updateVisualizationCheckboxFromNode(self):
         """Update checkbox state based on current volume visibility"""
         
@@ -1455,12 +1551,30 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.enableDisplacementVisualizationCheckbox.blockSignals(False)
 
         
+    
     def getOrCreateMouseLabelNode(self):
-        node = slicer.mrmlScene.GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
+        #self.ui.LandmarkSelectorComboBox.addItem(node.GetName()) #stores node name (string)
+        #--- We CAN'T hard code the node name because we need two - one for each map - depending on whichever is loaded --- 
+        # node = slicer.mrmlScene.GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
+        
+        # volumeNode = self.ui.loadedTransformVolume.currentNode()
+
+        # if not volumeNode:
+        #     return None
+        
+        # # Create unique name using volume name (sanitize special characters)
+        # volumeName = volumeNode.GetName().replace(" ", "_")
+        # labelNodeName = f"BrainShiftModule_MouseValueLabel_{volumeName}"
+
+        self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
+
+        
+        node = slicer.mrmlScene.GetFirstNodeByName(labelNodeName)
+
         if node is None:
             node = slicer.mrmlScene.AddNewNodeByClass(
                 "vtkMRMLMarkupsFiducialNode",
-                "BrainShiftModule_MouseValueLabel"
+               labelNodeName
             )
             node.AddControlPoint(0, 0, 0)
             node.SetLocked(True)
