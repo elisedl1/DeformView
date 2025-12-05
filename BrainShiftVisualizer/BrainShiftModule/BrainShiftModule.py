@@ -246,9 +246,15 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         # connect threshold slider
         self.ui.thresholdSlider.connect("valuesChanged(double,double)", self.onThresholdSliderChanged)
+        
+        self.ui.colourWindowSlider.connect("valuesChanged(double,double)", self.onColourWindowSliderChanged)
+
         # set spin box max and mins
         self.ui.thresholdMinSpinBox.connect("valueChanged(double)", self.onMinSpinBoxChanged)
         self.ui.thresholdMaxSpinBox.connect("valueChanged(double)", self.onMaxSpinBoxChanged)        
+      
+        #self.ui.minColourWindow.connect("valueChanged(double)", self.onMinColourWindowChanged)
+        #self.ui.maxColourWindow.connect("valueChanged(double)", self.onMaxColourWindowChanged)        
       
 
         # button to create fcsv from tag file
@@ -469,6 +475,43 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         thresLayout.addLayout(spinBoxLayout)
 
         vizLayout.addRow("Threshold Range:", thresLayout)
+
+
+        windowLayout = qt.QVBoxLayout()
+        windowLayout.setSpacing(5)
+        #vizLayout.addRow("Colour Window:", self.ui.colourWindowSlider)
+        colourWindowSliderLayout = qt.QHBoxLayout()
+        colourWindowSliderLayout.addWidget(self.ui.colourWindowSlider)
+        windowLayout.addLayout(colourWindowSliderLayout)
+
+        # colourWindowLayout = qt.QHBoxLayout()
+        # colourWindowLayout.addWidget(qt.QLabel("Min:"))
+        # #colourWindowLayout.addWidget(self.ui.minColourWindow)
+        # colourWindowLayout.addSpacing(10)
+        # colourWindowLayout.addWidget(qt.QLabel("Max:"))
+        # colourWindowLayout.addWidget(self.ui.maxColourWindow)
+        # windowLayout.addLayout(colourWindowLayout)
+        
+        vizLayout.addRow("Colour Window (contrast):", windowLayout)
+
+
+        # COLOUR LEVEL
+        levelLayout = qt.QVBoxLayout()
+        levelLayout.setSpacing(5)
+        #vizLayout.addRow("Colour Window:", self.ui.colourWindowSlider)
+        colourLevelSliderLayout = qt.QHBoxLayout()
+        colourLevelSliderLayout.addWidget(self.ui.colourLevelSlider)
+        levelLayout.addLayout(colourLevelSliderLayout)
+
+        # colourLevelLayout = qt.QHBoxLayout()
+        # colourLevelLayout.addWidget(qt.QLabel("Min:"))
+        # colourLevelLayout.addWidget(self.ui.minColourLevel)
+        # colourLevelLayout.addSpacing(10)
+        # colourLevelLayout.addWidget(qt.QLabel("Max:"))
+        # colourLevelLayout.addWidget(self.ui.maxColourLevel)
+        # levelLayout.addLayout(colourLevelLayout)
+        
+        vizLayout.addRow("Colour Level (brightness):", levelLayout)
 
         # Add stretch at the end
         self.layout.addStretch(1)
@@ -1113,14 +1156,16 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # set max and min of threshold slider
         imageData = selectedVolume.GetImageData()
+        #print("Image Data", imageData)
         if imageData:
             minScalar, maxScalar = imageData.GetScalarRange()
             defaultMinValue = minScalar + 0.02 * (maxScalar - minScalar) #Default minimum set to 2%
             self.scalarRange = (float(minScalar), float(maxScalar))  # store exact range
-            print(f"min: {minScalar}, max: {maxScalar}")
-            print(defaultMinValue)
+            #print(f"min: {minScalar}, max: {maxScalar}")
+            #print(defaultMinValue)
             
             self.ui.thresholdSlider.setRange(minScalar, maxScalar)
+            
 
             self.ui.thresholdMinSpinBox.setSpecialValueText("") #clear 'Minimum Threshold'
             self.ui.thresholdMaxSpinBox.setSpecialValueText("")  
@@ -1135,12 +1180,74 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.thresholdMinSpinBox.singleStep = step
             self.ui.thresholdMaxSpinBox.singleStep = step
 
+
+
             #Always set the values after setting the mins/ maxs to avoid caching issues 
             self.ui.thresholdSlider.setValues(minScalar, maxScalar)
             self.ui.thresholdMinSpinBox.setValue(defaultMinValue)  
             self.ui.thresholdMaxSpinBox.setValue(maxScalar)
 
+        displayNode = selectedVolume.GetDisplayNode()
+        if displayNode:
+            # --- Colour Window (contrast)---
 
+            # Turn off auto window/level to get current manual settings
+            displayNode.AutoWindowLevelOff()
+            
+            window = displayNode.GetWindow()
+            
+            minWindow = displayNode.GetWindowLevelMin()
+            maxWindow = displayNode.GetWindowLevelMax()
+            
+            print("Current Window:", window)
+            print("Window Range:", minWindow, "to", maxWindow)
+            
+            # Set up the slider
+            self.ui.colourWindowSlider.singleStep = step
+            self.ui.colourWindowSlider.minimum = minWindow
+            self.ui.colourWindowSlider.maximum = maxWindow
+            self.ui.colourWindowSlider.value = window  # Set current window as default
+            
+            # Connect slider to update function
+            self.ui.colourWindowSlider.valueChanged.connect(self.onWindowChanged)
+            
+            # --- Colour Level (brightness)---
+            level = displayNode.GetLevel()
+
+            minLevel = displayNode.GetWindowLevelMin()
+            maxLevel = displayNode.GetWindowLevelMax()
+
+            print("Current Level:", level)
+            print("Level Range:", minLevel, "to", maxLevel)
+
+            # Set up the slider
+            self.ui.colourLevelSlider.singleStep = step
+            self.ui.colourLevelSlider.minimum = minLevel
+            self.ui.colourLevelSlider.maximum = maxLevel
+            self.ui.colourLevelSlider.value = level  # Set current level as default
+
+            # Connect slider to update function
+            self.ui.colourLevelSlider.valueChanged.connect(self.onLevelChanged)
+
+
+
+    def onWindowChanged(self, value):
+        """Update the display node when slider changes"""
+        volumeNode = self.ui.loadedTransformVolume.currentNode()
+
+        displayNode = volumeNode.GetDisplayNode()
+        if displayNode:
+            currentLevel = displayNode.GetLevel()
+            displayNode.SetWindowLevel(value, currentLevel)
+
+
+    def onLevelChanged(self, value):
+        """Update the display node when level slider changes"""
+        volumeNode = self.ui.loadedTransformVolume.currentNode()
+        displayNode = volumeNode.GetDisplayNode()
+        if displayNode:
+            currentWindow = displayNode.GetWindow()
+            displayNode.SetWindowLevel(currentWindow, value)
 
 
     def onMouseMoved(self, observer, eventid):
@@ -1386,6 +1493,30 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         displayNode = volumeNode.GetDisplayNode()
 
 
+    def onColourWindowSliderChanged(self, minValue, maxValue):
+
+        volumeNode = self.ui.loadedTransformVolume.currentNode()
+        if not volumeNode:
+            logging.warning("No displacement magnitude volume available for thresholding.")
+            return
+        
+        # dynamically set min and max value
+        displayNode = volumeNode.GetDisplayNode()
+
+        displayNode.AutoWindowLevelOff()
+        displayNode.SetThreshold(minValue, maxValue)
+        displayNode.SetApplyThreshold(True)
+        displayNode.Modified()
+        logging.info(f"Colour window applied: min = {minValue}, max = {maxValue}")
+
+        self.ui.colourWindowMinSpinBox.blockSignals(True)
+        self.ui.colourWindowMaxSpinBox.blockSignals(True)
+        self.ui.colourWindowMinSpinBox.setValue(minValue)
+        self.ui.colourWindowMaxSpinBox.setValue(maxValue)
+        self.ui.colourWindowMinSpinBox.blockSignals(False)
+        self.ui.colourWindowMaxSpinBox.blockSignals(False)
+
+
     def onThresholdSliderChanged(self, minValue, maxValue):
 
         volumeNode = self.ui.loadedTransformVolume.currentNode()
@@ -1414,10 +1545,17 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         currentMax = self.ui.thresholdMaxSpinBox.value
         self.ui.thresholdSlider.setValues(value, currentMax)
 
+    def onMinColourWindowChanged(self, value):
+        currentMax = self.ui.colourWindowMax.value
+        self.ui.colourWindowSlider.setValues(value, currentMax)
+
     def onMaxSpinBoxChanged(self, value):
         currentMin = self.ui.thresholdMinSpinBox.value
         self.ui.thresholdSlider.setValues(currentMin, value)
 
+    def onMaxColourWindowChanged(self, value):
+        currentMin = self.ui.colourWindowMax.value
+        self.ui.colourWindowSlider.setValues(currentMin, value)
 
 # BrainShiftModuleLogic
 class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
