@@ -190,30 +190,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # connect
         self.ui.loadDisplacementVolumeButton.connect("clicked(bool)", self.onLoadDisplacementVolume)
 
-        # color selector
-             
-        jacobianColorNode = self.createJacobianColorNode()
+        # Color selector
+        self.selectColourMap()
 
-        self.ui.colorMapSelector.setMRMLScene(slicer.mrmlScene)
-
-        # set default to ColdToHotRainbow
-        coldToHotNode = slicer.mrmlScene.GetFirstNodeByName("ColdToHotRainbow")
-        if not coldToHotNode:
-            coldToHotNode = slicer.vtkMRMLColorTableNode()
-            coldToHotNode.SetTypeToColdToHot()
-            coldToHotNode.SetName("ColdToHotRainbow")
-            slicer.mrmlScene.AddNode(coldToHotNode)
-
-        # Set it as the default selected node in the combo box
-        self.ui.colorMapSelector.setCurrentNode(coldToHotNode)
-
-        self.ui.colorMapSelector.nodeTypes = [
-            f"{jacobianColorNode}",
-            "vtkMRMLColorTableNode",
-            "vtkMRMLProceduralColorNode",
-            "vtkMRMLPETColorNode"
-            
-        ]
 
 
         # mouse displayer
@@ -221,23 +200,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # self.labelMarkupNode = slicer.util.getModule("Data").mrmlScene().GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
         #Need to dynamically set the labelMarkupNode, depending on which label is being loaded by loadDisplacementVolume
-        
-        self.labelMarkupNode = None #Set to None initially so it can be created dynamically?
-
-        # self.labelMarkupNode = slicer.mrmlScene.GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
-
-        # if(  not self.labelMarkupNode ):
-        #     self.labelMarkupNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "BrainShiftModule_MouseValueLabel")
-        #     self.labelMarkupNode.AddControlPoint(0, 0, 0)
-        #     self.labelMarkupNode.SetLocked(True)
-        #     self.labelMarkupNode.SetMarkupLabelFormat("{label}")
-        #     self.labelMarkupNode.GetDisplayNode().SetVisibility2D(False)
-        #     self.labelMarkupNode.GetDisplayNode().SetVisibility3D(False)
-        #     self.labelMarkupNode.SetNthControlPointLabel(0, "")
-        #     self.labelMarkupNode.GetDisplayNode().SetColor([0.0, 0.0, 0.0])  # [0.0,0.0,0.0]       # Fiducial marker color
-        #     self.labelMarkupNode.GetDisplayNode().SetSelectedColor([0.0, 0.0, 0.0])  # [0.0, 0.0, 0.0]    # Color when selected
-        #     self.labelMarkupNode.GetDisplayNode().GetTextProperty().SetColor(0.0, 0.0, 0.0)  # 0,0,0 # Label **text** color (this is key!)
-
+        #Set to None initially so it can be created dynamically?
+        self.labelMarkupNode = None 
+        #Functionality moved to self.getOrCreateLabelNodeForCurrentVolume
+  
         self.crosshairObserverTag = None
 
         self.ui.enableHoverDisplayCheckbox.setChecked(False)  # start disabled
@@ -249,13 +215,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-        # self.line_edit = qt.QLineEdit(self)
-        # self.layout.addWidget(self.line_edit)
-
-        # self.line_edit = qt.QLineEdit()
-        # self.layout().addWidget(self.line_edit)
-
-        #self.ui.line_edit = qt.QLineEdit()
+    
         
         # connect backgroundVolume
         self.ui.backgroundVolume.setProperty("SlicerParameterName", "backgroundVolume")
@@ -332,6 +292,84 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         
 
+
+   
+    def create_colour_node(self, name_str, type_str="ColdToHot"):
+
+          # Create ColdToHotRainbow and TAG it
+        node = slicer.mrmlScene.GetFirstNodeByName(f"{name_str}")
+        if not node:
+            node = slicer.vtkMRMLColorTableNode()
+            #typeFunction = getattr(node, f"SetTypeTo{type_str}")
+            typeFunction = getattr(node, f"SetTypeTo{type_str}")
+            typeFunction()
+            #typeFunctionStr = f"SetTypeTo{type_str}"
+            #getattr(node.typeFunctionStr)()
+            node.SetName(f"{name_str}")
+            slicer.mrmlScene.AddNode(node)
+        node.SetAttribute("MyColourMaps", "1")  
+
+
+    def selectColourMap(self):
+        # Set the scene FIRST
+        self.ui.colorMapSelector.setMRMLScene(slicer.mrmlScene)
+        
+        self.ui.colorMapSelector.nodeTypes = ["vtkMRMLColorTableNode"]
+
+        # Filter: only show vtkMRMLColorTableNode nodes that have "MyColorMaps" attribute
+        self.ui.colorMapSelector.addAttribute("vtkMRMLColorTableNode", "MyColourMaps", "1")
+
+
+        nodes_to_add = [("ColdToHotRainbow", "ColdToHot"),
+                         ("Iron", "Iron"),
+                        ("Grey", "Grey"),
+                        ("Plasma", "Plasma"),
+                         ("Cividis", "Cividis"),
+                          ("Inferno", "Inferno"),
+                          # ("JacobianMap", "UserDefined"),
+                           ("Viridis", "Viridis"),
+                           ("Rainbow", "Rainbow"),
+                           #("FullRainbow", "FullRainbow")
+                           ("Ocean", "Ocean"),
+                           ("InvertedGrey", "InvertedGrey"),
+                           ("fMRI", "fMRI"),
+                           ("Yellow", "Yellow"),
+                           ("Warm1", "Warm1"),
+                           #("warmShade1", "WarmShade1"),
+                           #("CoolShade1", "CoolShade1"),
+                           ("DivergingBlueRed","DivergingBlueRed" ),
+                           ("Magma","Magma" ),
+                           ("Isodose_ColorTable_Default", "Isodose_ColorTable_Default"),
+                            ("Isodose_ColorTable_Relative", "Isodose_ColorTable_Relative"),
+
+
+           ]
+                           #("CoolToWarm", "CoolToWarm")]
+        
+        for number in nodes_to_add:
+            #print("adding node:", number)
+            name_str, type_str = number
+            new_node = self.create_colour_node(name_str, type_str)
+            #self.ui.colorMapSelector.setCurrentNode(new_node)
+
+
+
+        #and then add custom colour maps like this:
+        jacobianNode = self.createJacobianColorNode()
+
+        jacobianNode = slicer.mrmlScene.GetFirstNodeByName(f"{jacobianNode}")
+        if not jacobianNode:
+            slicer.mrmlScene.AddNode(jacobianNode)
+        jacobianNode.SetAttribute("MyColourMaps", "1")  
+        
+
+        # # set default to ColdToHotRainbow
+        coldToHotNode = slicer.mrmlScene.GetFirstNodeByName("ColdToHotRainbow")
+      
+
+        # Set it as the default selected node in the combo box
+        self.ui.colorMapSelector.setCurrentNode(coldToHotNode)
+        
 
 
     def onTransformVolumeChanged(self):
@@ -672,7 +710,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # if not slicer.vtkMRMLProceduralColorNode().Get
         colorNode = slicer.vtkMRMLProceduralColorNode()
         colorNode.SetName("JacobianMap")
-        slicer.mrmlScene.AddNode(colorNode)
+        #slicer.mrmlScene.AddNode(colorNode)
         
         # Metadata
         colorNode.SetAttribute("Category", "Jacobian")
@@ -1151,11 +1189,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
             # fMRI as default colour (unless one already preselected)
-            #colorNode = None
+            colorNode = None
             if hasattr(self.ui, "colorMapSelector"):
                 colorNode = self.ui.colorMapSelector.currentNode()
             if colorNode is None:
                 colorNode = slicer.util.getFirstNodeByClassByName('vtkMRMLColorTableNode', 'fMRI')
+            
             self.ui.colorMapSelector.setEnabled(True)
             self.ui.colorMapSelector.setCurrentNode(colorNode)
             
@@ -1186,12 +1225,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # )
             
             # TODO: Add this back in if we want to directly load the colour map 
-            # colorNode = self.ui.colorMapSelector.currentNode()
-            # if colorNode and self._parameterNode.displacementMagnitudeVolume:
-            #     print("In 490!!!")
-            #     displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
-            #     if displayNode:
-            #         displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            colorNode = self.ui.colorMapSelector.currentNode()
+            if colorNode and self._parameterNode.displacementMagnitudeVolume:
+                print("In 490!!!")
+                displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
+                if displayNode:
+                    displayNode.SetAndObserveColorNodeID(colorNode.GetID())
 
 
 
@@ -1266,9 +1305,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if colorNode:
             
             internalDisplayNode.SetAndObserveColorNodeID(colorNode.GetID())
-            #internalDisplayNode.Modified()
-            #displayNode.SetAndObserveColorNodeID(colorNode.GetID())
-            #displayNode.Modified() #this line is directly modifying the volume - problem if incorrect volume is loaded in
+            internalDisplayNode.Modified()
+            # displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            # displayNode.Modified() #this line is directly modifying the volume - problem if incorrect volume is loaded in
 
         normalizedValue = self.ui.opacitySlider.value / 100
         internalDisplayNode.SetOpacity(normalizedValue)
