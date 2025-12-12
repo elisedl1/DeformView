@@ -354,13 +354,13 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-        #and then add custom colour maps like this:
-        jacobianNode = self.createJacobianColorNode()
+        # #and then add custom colour maps like this:
+        # jacobianNode = self.createJacobianColorNode()
 
-        jacobianNode = slicer.mrmlScene.GetFirstNodeByName(f"{jacobianNode}")
-        if not jacobianNode:
-            slicer.mrmlScene.AddNode(jacobianNode)
-        jacobianNode.SetAttribute("MyColourMaps", "1")  
+        # jacobianNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
+        # if not jacobianNode:
+        #     slicer.mrmlScene.AddNode(jacobianNode)
+        #     jacobianNode.SetAttribute("MyColourMaps", "1")  
         
 
         # # set default to ColdToHotRainbow
@@ -538,8 +538,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         visualizeVolumeLayout = qt.QHBoxLayout()
         visualizeVolumeLayout.addWidget(self.ui.enableDisplacementVisualizationCheckbox)
+        visualizeVolumeLayout.addWidget(self.ui.enableHoverDisplayCheckbox)
+
         # visualizeVolumeLayout.addSpacing(5)
-        visualizeVolumeLayout.addWidget(self.ui.loadDisplacementVolumeButton, 1)  # Stretch factor
+        visualizeVolumeLayout.addWidget(self.ui.loadDisplacementVolumeButton)  # Stretch factor
         #landmarkLayout.setLabelAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)
 
         processingLayout.addRow(" ", visualizeVolumeLayout)
@@ -610,7 +612,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         vizLayout.setVerticalSpacing(12)
         vizLayout.setLabelAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)
 
-        vizLayout.addRow(self.ui.enableHoverDisplayCheckbox)
         vizLayout.addRow(self.ui.enableUsBorderDisplay)
 
         # Opacity with better layout
@@ -785,7 +786,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     displayNode.SetTextScale(3.0)
                     displayNode.SetActiveColor([1.0, 0.2, 0.5])
                     displayNode.SetSelectedColor(0.0, 0.0, 0.0)
-                    displayNode.SetGlyphTypeFromString("Circle2D")
+                    displayNode.SetGlyphTypeFromString("CrossDot2D")
                     displayNode.SetSelected(checked)
                     displayNode.SetHandlesInteractive(False) #??
                     displayNode.SetInteractionHandleScale(0.0)
@@ -820,6 +821,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def enter(self) -> None:
         """Called each time the user opens this module."""
         # Make sure parameter node exists and observed
+
+        
         self.initializeParameterNode()
 
         # re-acquire or create mouse label node
