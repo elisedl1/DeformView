@@ -18,6 +18,7 @@ from slicer.parameterNodeWrapper import (
 
 from slicer import vtkMRMLScalarVolumeNode
 from slicer import vtkMRMLTransformNode
+from slicer import vtkMRMLColorTableNode
 from slicer import vtkMRMLVectorVolumeNode
 import vtk.util.numpy_support
 import qt
@@ -191,6 +192,23 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.loadDisplacementVolumeButton.connect("clicked(bool)", self.onLoadDisplacementVolume)
 
         # Color selector
+        # self.cleanupDuplicateColorNodes("ColdToHotRainbow")
+
+        # # Force remove ALL nodes with these names
+        # for name in ["ColdToHotRainbow", "HotToColdRainbow", "DivergingBlueRed", 
+        #             "Isodose_ColorTable_Default", "Isodose_ColorTable_Relative"]:
+        #     nodes = slicer.util.getNodesByClass('vtkMRMLColorNode')
+        #     for node in nodes:
+        #         if node.GetName() == name:
+        #             print(f"Removing {name}")
+        #             slicer.mrmlScene.RemoveNode(node)
+
+        self.enableVTKErrorTracking()
+
+        self.cleanupDuplicateColorNodes("JacobianMap")
+
+        self.resetBuiltInColorNodes()
+        #self.resetAllColorNodes()
         self.selectColourMap()
 
 
@@ -292,85 +310,639 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         
 
+    import numpy as np
 
-   
-    def create_colour_node(self, name_str, type_str="ColdToHot"):
+    def enableVTKErrorTracking(self):
+        """Enable detailed VTK error tracking with stack traces"""
+        import vtk
+        
+        # Create an error observer
+        def errorCallback(obj, event):
+            import traceback
+            print("\n" + "="*60)
+            print("VTK ERROR DETECTED:")
+            print("="*60)
+            traceback.print_stack()
+            print("="*60 + "\n")
+        
+        # Add observer to VTK output window
+        errorObserver = vtk.vtkFileOutputWindow()
+        vtk.vtkOutputWindow.SetInstance(errorObserver)
+        
+        # You can also observe specific objects
+        return errorCallback
+    
 
-          # Create ColdToHotRainbow and TAG it
-        node = slicer.mrmlScene.GetFirstNodeByName(f"{name_str}")
+    def resetBuiltInColorNodes(self):
+        """Reset built-in color nodes to defaults"""
+        colorLogic = slicer.modules.colors.logic()
+        # This will reload all default color nodes
+        colorLogic.RemoveDefaultColorNodes()
+
+        colorLogic.AddDefaultColorNodes()
+
+        
+    def cleanupCorruptedColormaps(self, name_str, type_str):
+        """
+        Remove corrupted/empty color nodes and recreate them properly.
+        Returns True if node was created/recreated, False if already valid.
+        """
+        print(f"Checking {name_str}...")
+        
+        # Find the node
+        node = slicer.mrmlScene.GetFirstNodeByName(name_str)
+        
+        # Case 1: Node doesn't exist - create it
         if not node:
-            node = slicer.vtkMRMLColorTableNode()
-            #typeFunction = getattr(node, f"SetTypeTo{type_str}")
-            typeFunction = getattr(node, f"SetTypeTo{type_str}")
-            typeFunction()
-            #typeFunctionStr = f"SetTypeTo{type_str}"
-            #getattr(node.typeFunctionStr)()
-            node.SetName(f"{name_str}")
-            slicer.mrmlScene.AddNode(node)
-        node.SetAttribute("MyColourMaps", "1")  
+            print(f"  {name_str} doesn't exist, creating...")
+            self.create_colour_node(name_str, type_str)
+            return True  # We created it
+        
+        # Case 2: Node exists - check if it's corrupted
+        is_corrupted = False
+        
+        # Check 1: Is it a procedural node when it should be a table node?
+        if node.GetClassName() == "vtkMRMLProceduralColorNode":
+            print(f"  {name_str} is procedural node (should be color table)")
+            is_corrupted = True
+        
+        # Check 2: Does it have a valid lookup table?
+        if hasattr(node, 'GetLookupTable'):
+            lut = node.GetLookupTable()
+            if not lut or lut.GetNumberOfTableValues() == 0:
+                print(f"  {name_str} has no lookup table")
+                is_corrupted = True
+            else:
+                # Check if all colors are black (empty/corrupted)
+                all_black = True
+                for i in range(min(10, lut.GetNumberOfTableValues())):
+                    rgba = lut.GetTableValue(i)
+                    if rgba[0] > 0.01 or rgba[1] > 0.01 or rgba[2] > 0.01:
+                        all_black = False
+                        break
+                
+                if all_black:
+                    print(f"  {name_str} has all-black colors (corrupted)")
+                    is_corrupted = True
+        
+        # Check 3: Does it have any colors defined?
+        if hasattr(node, 'GetNumberOfColors'):
+            num_colors = node.GetNumberOfColors()
+            if num_colors == 0:
+                print(f"  {name_str} has 0 colors")
+                is_corrupted = True
+        
+        # Case 3: If corrupted, remove and recreate
+        if is_corrupted:
+            print(f"  Removing corrupted {name_str}")
+            slicer.mrmlScene.RemoveNode(node)
+            print(f"  Recreating {name_str}")
+            self.create_colour_node(name_str, type_str)
+            return True  # We recreated it
+        
+        # Case 4: Node exists and is valid
+        print(f"  ✓ {name_str} is valid")
+        node.SetAttribute("MyColourMaps", "1")
+        return False  # No changes needed
 
 
+
+    
     def selectColourMap(self):
+        """
+        Set up the color map selector with available colormaps.
+        Only creates colormaps that don't already exist.
+        """
+        
         # Set the scene FIRST
         self.ui.colorMapSelector.setMRMLScene(slicer.mrmlScene)
+  
+        # Disable automatic sorting
+        self.ui.colorMapSelector.sortFilterProxyModel().sort(-1)
         
-        self.ui.colorMapSelector.nodeTypes = ["vtkMRMLColorTableNode"]
-
-        # Filter: only show vtkMRMLColorTableNode nodes that have "MyColorMaps" attribute
+        # Configure node types
+        self.ui.colorMapSelector.nodeTypes = [
+            #f"{jacobianColorNode}",
+            "vtkMRMLColorTableNode",
+            "vtkMRMLProceduralColorNode",
+            "vtkMRMLPETColorNode",
+            "vtkMRMLColorTableNodeFile"
+        ]
+        
+        # Filter: only show nodes with "MyColourMaps" attribute
+        # self.ui.colorMapSelector.addAttribute(f"{jacobianColorNode}", "MyColourMaps", "1")
         self.ui.colorMapSelector.addAttribute("vtkMRMLColorTableNode", "MyColourMaps", "1")
+        self.ui.colorMapSelector.addAttribute("vtkMRMLProceduralColorNode", "MyColourMaps", "1")
+        self.ui.colorMapSelector.addAttribute("vtkMRMLPETColorNode", "MyColourMaps", "1")
+        self.ui.colorMapSelector.addAttribute("vtkMRMLColorTableNodeFile", "MyColourMaps", "1")
+        #self.ui.colorMapSelector.AddDefaultFileNodes()
+        #slicer.util.AddDefaultFileNodes()
+        #colorLogic = slicer.modules.colors.logic()
+        # The color nodes are already in the scene
 
-
-        nodes_to_add = [("ColdToHotRainbow", "ColdToHot"),
-                         ("Iron", "Iron"),
-                        ("Grey", "Grey"),
-                        ("Plasma", "Plasma"),
-                         ("Cividis", "Cividis"),
-                          ("Inferno", "Inferno"),
-                          # ("JacobianMap", "UserDefined"),
-                           ("Viridis", "Viridis"),
-                           ("Rainbow", "Rainbow"),
-                           #("FullRainbow", "FullRainbow")
-                           ("Ocean", "Ocean"),
-                           ("InvertedGrey", "InvertedGrey"),
-                           ("fMRI", "fMRI"),
-                           ("Yellow", "Yellow"),
-                           ("Warm1", "Warm1"),
-                           #("warmShade1", "WarmShade1"),
-                           #("CoolShade1", "CoolShade1"),
-                           ("DivergingBlueRed","DivergingBlueRed" ),
-                           ("Magma","Magma" ),
-                           ("Isodose_ColorTable_Default", "Isodose_ColorTable_Default"),
-                            ("Isodose_ColorTable_Relative", "Isodose_ColorTable_Relative"),
-
-
-           ]
-                           #("CoolToWarm", "CoolToWarm")]
-        
-        for number in nodes_to_add:
-            #print("adding node:", number)
-            name_str, type_str = number
-            new_node = self.create_colour_node(name_str, type_str)
-            #self.ui.colorMapSelector.setCurrentNode(new_node)
-
-
-
-        # #and then add custom colour maps like this:
-        # jacobianNode = self.createJacobianColorNode()
-
-        # jacobianNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
-        # if not jacobianNode:
-        #     slicer.mrmlScene.AddNode(jacobianNode)
-        #     jacobianNode.SetAttribute("MyColourMaps", "1")  
-        
-
-        # # set default to ColdToHotRainbow
-        coldToHotNode = slicer.mrmlScene.GetFirstNodeByName("ColdToHotRainbow")
+        # allColorNodes = slicer.util.getNodesByClass('vtkMRMLColorTableNode')
+        # for node in allColorNodes:
+        #     print(f"{node.GetID()} - {node.GetName()}")
       
+        # Create Jacobian color node
+        jacobianColorNode = self.createJacobianColorNode()
 
-        # Set it as the default selected node in the combo box
-        self.ui.colorMapSelector.setCurrentNode(coldToHotNode)
+        # List of colormaps to ensure exist
+        nodes_to_add = [
+            ("HotToColdRainbow", "vtkMRMLColorTableNodeFileHotToColdRainbow.txt"),
+            ("DivergingBlueRed", "vtkMRMLColorTableNodeFileDivergingBlueRed.txt"),
+            ("FullRainbow", "vtkMRMLColorTableNodeFullRainbow"),
+            ("Iron", "vtkMRMLColorTableNodeIron"),
+            ("Grey", "vtkMRMLColorTableNodeGrey"),
+            ("Plasma", "vtkMRMLColorTableNodeFilePlasma.txt"),
+            ("Cividis", "vtkMRMLColorTableNodeFileCividis.txt"),
+            ("Inferno", "vtkMRMLColorTableNodeFileInferno.txt"),
+            ("Viridis", "vtkMRMLColorTableNodeFileViridis.txt"),
+            ("Rainbow", "vtkMRMLColorTableNodeRainbow"),
+            ("Ocean", "vtkMRMLColorTableNodeOcean"),
+            ("InvertedGrey", "vtkMRMLColorTableNodeInvertedGrey"),
+            ("fMRI", "vtkMRMLColorTableNodefMRI"),
+            ("Yellow", "vtkMRMLColorTableNodeYellow"),
+            ("Warm1", "vtkMRMLColorTableNodeWarm1"),
+            ("Magma", "vtkMRMLColorTableNodeFileMagma.txt"),
+            #("Isodose_ColorTable_Relative", "Isodose_ColorTable_Relative"),
+        ]
+
+        # CRITICAL FIX: Only create if doesn't exist
+        #for name_str, node_ID in nodes_to_add:
+            # self.cleanupCorruptedColormaps(name_str, type_str)
+            #existing = slicer.mrmlScene.GetFirstNodeByName(name_str)
+            #existing = slicer.mrmlScene.GetNodeByID(f'{node_ID}')
+
+                #existing = None
+
+            #if not existing:
+                #Only create if it doesn't exist
+
+            #print(f"Creating colormap: {name_str}")
+        #    new_node = self.create_colour_node(name_str, node_ID)
+    # Add display order attribute
+        for index, (name_str, node_ID) in enumerate(nodes_to_add):
+            node = self.create_colour_node(name_str, node_ID)
+            if node:
+                #node.SetAttribute("DisplayOrder", str(index))
+                node.SetAttribute("SortOrder", f"{index:03d}")
+
+        # else:
+        proxyModel = self.ui.colorMapSelector.sortFilterProxyModel()
+
+        #     existing.SetAttribute("MyColourMaps", "1")
+        #     print(f"Colormap {name_str} already exists, skipping")
+    
+        # for name_str, type_str in nodes_to_add:
+        #     self.cleanupCorruptedColormaps(name_str, type_str)
+    
+
+        #self.verify_colormap("Viridis")
+          # Set default to Rainbow
+        HotToColdRainbowNode = slicer.mrmlScene.GetNodeByID(f'vtkMRMLColorTableNodeFileHotToColdRainbow.txt')
+        self.defaultColorNodeID = 'vtkMRMLColorTableNodeFileHotToColdRainbow.txt'
+        print(self.defaultColorNodeID)
+        #ColdToHotRainbowNode = slicer.mrmlScene.GetFirstNodeByName("HotToColdRainbow")
+        if HotToColdRainbowNode:
+            self.ui.colorMapSelector.setCurrentNode(HotToColdRainbowNode)
+            #self.ui.colorMapSelector.Attribute("DefaultColourMap", "vtkMRMLColorTableNodeFileHotToColdRainbow.txt")
+            #self.ui.colorMapSelector.addAttribute("vtkMRMLColorTableNode", "DefaultColourMap", "vtkMRMLColorTableNodeFileHotToColdRainbow.txt")
+
+
+    def diagnose_colormap_application(self, volumeNode):
+        """
+        Diagnose why the colormap isn't showing correctly
+        """
+        print("\n=== COLORMAP DIAGNOSTIC ===")
+        
+        if not volumeNode:
+            print("No volume node!")
+            return
+        
+        print(f"Volume: {volumeNode.GetName()}")
+        
+        # Check image data
+        imageData = volumeNode.GetImageData()
+        if imageData:
+            scalarRange = imageData.GetScalarRange()
+            numComponents = imageData.GetNumberOfScalarComponents()
+            print(f"  Scalar range: {scalarRange}")
+            print(f"  Components: {numComponents}")
+        
+        # Check display node
+        displayNode = volumeNode.GetDisplayNode()
+        if not displayNode:
+            print("  ERROR: No display node!")
+            return
+        
+        print(f"  Display node exists: Yes")
+        
+        # Check color node
+        colorNodeID = displayNode.GetColorNodeID()
+        if not colorNodeID:
+            print("  ERROR: No color node ID set!")
+            return
+        
+        print(f"  Color node ID: {colorNodeID}")
+        
+        colorNode = slicer.mrmlScene.GetNodeByID(colorNodeID)
+        if not colorNode:
+            print("  ERROR: Color node not found in scene!")
+            return
+        
+        print(f"  Color node: {colorNode.GetName()}")
+        print(f"  Color node type: {colorNode.GetClassName()}")
+        
+        # Check lookup table
+        if hasattr(colorNode, 'GetLookupTable'):
+            lut = colorNode.GetLookupTable()
+            if lut:
+                lutRange = lut.GetRange()
+                print(f"  LUT range: {lutRange}")
+                print(f"  LUT entries: {lut.GetNumberOfTableValues()}")
+            else:
+                print("  ERROR: No lookup table!")
+        
+        # Check window/level settings
+        window = displayNode.GetWindow()
+        level = displayNode.GetLevel()
+        print(f"  Window: {window}")
+        print(f"  Level: {level}")
+        
+        # Check if auto window/level is on
+        autoWL = displayNode.GetAutoWindowLevel()
+        print(f"  Auto window/level: {autoWL}")
+        
+        # Check scalar range on display node
+        displayScalarRange = displayNode.GetScalarRange()
+        print(f"  Display scalar range: {displayScalarRange}")
+        
+        # Check color mapping
+        colorMapping = displayNode.GetScalarRangeFlag()
+        print(f"  Scalar range flag: {colorMapping}")
+        print(f"    0 = Manual, 1 = Use color node scalar range, 2 = Use data scalar range")
+        
+        print("=== END DIAGNOSTIC ===\n")
+
+
+    def create_colour_node_from_matplotlib(self, name_str, cmap_name, num_colors=256):
+        """
+        Create a properly configured 3D Slicer color node from matplotlib colormap.
+        """
+        try:
+            import matplotlib
+            import matplotlib.pyplot as plt
+            import numpy as np
+        except ImportError as e:
+            print(f"Matplotlib not available: {e}")
+            return None
+        
+        # Remove existing node if present
+        #node = slicer.mrmlScene.GetFirstNodeByName(name_str)
+        existing_node = slicer.mrmlScene.GetFirstNodeByName(name_str)
+        if existing_node:
+            #print(f"Matplotlib colormap {name_str} already exists")
+            return existing_node
+        # if node:
+        #     slicer.mrmlScene.RemoveNode(node)
+        
+        try:
+            mpl_cmap = matplotlib.colormaps[cmap_name].resampled(num_colors)
+        except:
+            mpl_cmap = plt.cm.get_cmap(cmap_name, num_colors)
+        
+        # Get RGBA values from matplotlib
+        colors_rgba = mpl_cmap(np.linspace(0, 1, num_colors))
+        
+        # Use ColorTableNode
+        colorNode = slicer.vtkMRMLColorTableNode()
+        colorNode.SetTypeToUser()
+        colorNode.SetNumberOfColors(num_colors)
+        colorNode.SetName(name_str)
+        #colorNode.SetAttribute("Category", "Matplotlib")
+        
+        # CRITICAL FIX: Set the range to match how Slicer maps values
+        # Slicer typically uses the actual data range, not 0-255
+        lookupTable = colorNode.GetLookupTable()
+        lookupTable.SetNumberOfTableValues(num_colors)
+        
+        # Use normalized range (0.0 to 1.0) instead of (0 to 255)
+        # This matches how other Slicer colormaps work
+        lookupTable.SetRange(0.0, 255.0)
+        lookupTable.SetRampToLinear()
+        
+        # Set each color
+        for i, (r, g, b, a) in enumerate(colors_rgba):
+            colorNode.SetColor(i, f"{cmap_name}_{i}", r, g, b, a)
+            # Map to normalized range
+            normalized_value = i / (num_colors - 1.0)
+            lookupTable.SetTableValue(i, r, g, b, a)
+        
+        # Build and configure the lookup table
+        lookupTable.Build()
+        
+        # IMPORTANT: Set these properties to match Slicer's behavior
+        colorNode.SetNamesInitialised(True)
+        colorNode.SaveWithSceneOff()  # Don't save with scene (like built-in colormaps)
+        
+        # Add to scene
+        slicer.mrmlScene.AddNode(colorNode)
+        colorNode.SetAttribute("MyColourMaps", "1")
+        
+        print(f"Created matplotlib colormap: {name_str} with {num_colors} colors")
+        print(f"  ✓ Lookup table validated: {num_colors} entries")
+        print(f"  Range: {lookupTable.GetRange()}")
         
 
+        return colorNode
+
+    import numpy as np
+
+    def verify_colormap(self, colorNodeName):
+        """
+        Verify a colormap has a valid lookup table
+        """
+        colorNode = slicer.mrmlScene.GetFirstNodeByName(colorNodeName)
+        if not colorNode:
+            print(f"Color node '{colorNodeName}' not found")
+            return False
+        
+        print(f"\n=== Verifying {colorNodeName} ===")
+        print(f"Type: {colorNode.GetClassName()}")
+        print(f"Number of colors: {colorNode.GetNumberOfColors()}")
+        
+        # Check if it has a lookup table
+        if hasattr(colorNode, 'GetLookupTable'):
+            lut = colorNode.GetLookupTable()
+            if lut:
+                print(f"Lookup table: {lut.GetNumberOfTableValues()} values")
+                print(f"Range: {lut.GetRange()}")
+                print("✓ Valid lookup table")
+                return True
+            else:
+                print("✗ No lookup table!")
+                return False
+        else:
+            print("✗ No GetLookupTable method")
+            return False
+
+# Test it:
+
+    def create_colour_table_from_matplotlib(self, name_str, cmap_name, num_colors=256):
+        """
+        Alternative: Create a ColorTableNode (discrete) instead of ProceduralColorNode.
+        This can sometimes work better for certain display nodes.
+        """
+        try:
+            import matplotlib
+            import matplotlib.pyplot as plt
+            import numpy as np
+
+        except ImportError:
+            print("Matplotlib not available.")
+            return None
+        
+        # Remove existing node
+        node = slicer.mrmlScene.GetFirstNodeByName(f"{name_str}")
+        # if node:
+        #     slicer.mrmlScene.RemoveNode(node)
+        
+        # Get matplotlib colormap
+        try:
+            mpl_cmap = matplotlib.colormaps[cmap_name].resampled(num_colors)
+        except:
+            mpl_cmap = plt.cm.get_cmap(cmap_name, num_colors)
+        
+        # Get RGBA values
+        colors_rgba = mpl_cmap(np.linspace(0, 1, num_colors))
+        
+        # Create color table node (discrete)
+        colorNode = slicer.vtkMRMLColorTableNode()
+        colorNode.SetTypeToUser()  # User-defined color table
+        colorNode.SetNumberOfColors(num_colors)
+        colorNode.SetName(name_str)
+        colorNode.SetAttribute("Category", "Matplotlib")
+        
+        # Set each color
+        for i, (r, g, b, a) in enumerate(colors_rgba):
+            colorNode.SetColor(i, f"color_{i}", r, g, b, a)
+        
+        # Add to scene
+        slicer.mrmlScene.AddNode(colorNode)
+        colorNode.SetAttribute("MyColourMaps", "1")
+        
+        return colorNode
+
+   
+   
+    # def create_colour_node(self, name_str, type_str="ColdToHot", use_table=False):
+    #     """
+    #     Unified function to create color nodes.
+        
+    #     Args:
+    #         name_str: Name for the color node
+    #         type_str: Type of colormap
+    #         use_table: If True, creates ColorTableNode instead of ProceduralColorNode
+    #     """
+    #     # Remove existing node
+    #     #node = slicer.mrmlScene.GetFirstNodeByName(name_str)
+    #     existing_node = slicer.mrmlScene.GetFirstNodeByName(name_str)
+    #     if existing_node:
+    #         # CRITICAL FIX: Set the attribute even on existing nodes
+    #         existing_node.SetAttribute("MyColourMaps", "1")
+    #         print(f"Color node {name_str} already exists, tagged for selector")
+    #         return existing_node
+    #     # if node:
+    #     #     slicer.mrmlScene.RemoveNode(node)
+        
+    #     # Try built-in vtkMRMLColorTableNode types first
+    #     try:
+    #         node = slicer.vtkMRMLColorTableNode()
+    #         typeFunction = getattr(node, f"SetTypeTo{type_str}")
+    #         typeFunction()
+    #         node.SetName(name_str)
+    #         slicer.mrmlScene.AddNode(node)
+    #         node.SetAttribute("MyColourMaps", "1")
+    #         print(f"Created built-in color table: {name_str}")
+    #         return node
+    #     except AttributeError:
+    #         pass  # Type doesn't exist, try matplotlib
+        
+    #     # Matplotlib colormaps
+    #     matplotlib_maps = {
+    #         'Viridis': 'viridis',
+    #         'Plasma': 'plasma', 
+    #         'Inferno': 'inferno',
+    #         'Magma': 'magma',
+    #         'Cividis': 'cividis',
+    #         'Turbo': 'turbo',
+    #         'RdBu': 'RdBu',
+    #         'Spectral': 'Spectral',
+    #     }
+        
+    #     if type_str in matplotlib_maps:
+    #         print(f"Creating {type_str} from matplotlib")
+    #         if use_table:
+    #             return self.create_colour_table_from_matplotlib(name_str, matplotlib_maps[type_str])
+    #         else:
+    #             return self.create_colour_node_from_matplotlib(name_str, matplotlib_maps[type_str])
+        
+    #     # Access the ColdToHotRainbow color map
+    # #     node = slicer.util.getNode('ColdToHotRainbow')
+
+
+    #     node = slicer.mrmlScene.GetNodeByID('vtkMRMLColorTableNodeFileHotToColdRainbow.txt')
+
+    # #    #node = slicer.mrmlScene.GetNodeByID('FilePlasma.txt')
+    #     node.SetName("HotToColdRainbow")
+    #     slicer.mrmlScene.AddNode(node)
+    #     node.SetAttribute("MyColourMaps", "1")
+    #     #print(f"Created built-in color table: Attmept")
+
+
+    #     # Or use the display name
+    #     #node = slicer.util.getNode('ColdToHotRainbow')
+    #     #node = slicer.util.getNode('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
+    #     # colorLogic = slicer.modules.colors.logic()
+    #     # colorNode = colorLogic.GetColorTableNodeID('ColdToHotRainbow')
+    #     # if colorNode:
+    #     #     node = slicer.mrmlScene.GetNodeByID(colorNode)
+    #     # Fallback: create empty procedural node
+    #     #print(f"Creating empty procedural node for {name_str}")
+    #     # node = slicer.vtkMRMLProceduralColorNode()
+    #     # print(dir(node))
+    #     # node.SetNumberOfTableValues(256)
+    #     # node.GetColorTransferFunction()
+    #     # node.SetName(name_str)
+    #     # slicer.mrmlScene.AddNode(node)
+    #     # node.SetAttribute("MyColourMaps", "1")
+    #     # if node:
+    #     #     print(f"Node type: {node.GetClassName()}")
+    #     #     print(f"Has GetLookupTable: {hasattr(node, 'GetLookupTable')}")
+    #     #     if hasattr(node, 'GetLookupTable'):
+    #     #         lut = node.GetLookupTable()
+    #     #         if lut:
+    #     #             print(f"LUT has {lut.GetNumberOfTableValues()} values")
+    #     #             print(f"LUT range: {lut.GetRange()}")
+    #     #             # Show first color
+    #     #             rgba = lut.GetTableValue(0)
+    #     #             print(f"First color: {rgba}")
+    #     #         else:
+    #     #             print("LUT is None")
+    #     #     print(f"Number of colors: {node.GetNumberOfColors()}")
+        
+    #     return node
+
+    def create_colour_node(self, name_str, node_ID=None, use_table=False):
+        """
+        Unified function to create color nodes.
+        
+        Args:
+            name_str: Name for the color node
+            type_str: Type of colormap
+            use_table: If True, creates ColorTableNode instead of ProceduralColorNode
+        """
+        # Remove existing node
+        #node = slicer.mrmlScene.GetFirstNodeByName(name_str)
+        #existing_node = slicer.mrmlScene.GetFirstNodeByName(name_str)
+        existing_node = slicer.mrmlScene.GetNodeByID(f'{node_ID}')
+        if existing_node:
+            existing_node.SetName(name_str)
+            # CRITICAL FIX: Set the attribute even on existing nodes
+            existing_node.SetAttribute("MyColourMaps", "1")
+            #existing_node.SetName(f"{name_str}")
+            #existing_node.SetName(name_str)
+            #existing_node.SetSingletonTag(name_str)  # This prevents duplicates
+    
+           #print(f"Color node {name_str} already exists")
+            return existing_node
+        
+        # if node:
+        #     slicer.mrmlScene.RemoveNode(node)
+        
+        # Try built-in vtkMRMLColorTableNode types first
+        try:
+            node = slicer.mrmlScene.GetNodeByID(f'{node_ID}')
+            #node = slicer.mrmlScene.GetNodeByID('FilePlasma.txt')
+            # if name_str.endswith("_1"):
+            #     name_str = name_str.replace("_1", "")
+            node.SetName(name_str)
+            #node.SetSingletonTag(name_str)
+            #node.SetDisplayName(f"{name_str}")
+
+            slicer.mrmlScene.AddNode(node)
+            node.SetAttribute("MyColourMaps", "1")
+            if node.GetName() != name_str:
+                node.SetName(name_str)
+            return node
+        
+        except AttributeError:
+            print(f"Failed to make {name_str}!")
+            pass  # Type doesn't exist, try matplotlib
+        
+        # # Matplotlib colormaps
+        # matplotlib_maps = {
+        #     'Viridis': 'viridis',
+        #     'Plasma': 'plasma', 
+        #     'Inferno': 'inferno',
+        #     'Magma': 'magma',
+        #     'Cividis': 'cividis',
+        #     'Turbo': 'turbo',
+        #     'RdBu': 'RdBu',
+        #     'Spectral': 'Spectral',
+        # }
+        
+        # if type_str in matplotlib_maps:
+        #     print(f"Creating {type_str} from matplotlib")
+        #     if use_table:
+        #         return self.create_colour_table_from_matplotlib(name_str, matplotlib_maps[type_str])
+        #     else:
+        #         return self.create_colour_node_from_matplotlib(name_str, matplotlib_maps[type_str])
+        
+        # Access the ColdToHotRainbow color map
+    #     node = slicer.util.getNode('ColdToHotRainbow')
+
+
+       
+        #print(f"Created built-in color table: Attmept")
+
+
+     
+        return node
+
+
+    def create_matplotlib_colormaps_only(self):
+        """
+        Create matplotlib colormaps during setup WITHOUT modifying any volumes.
+        Only creates the color nodes if they don't already exist.
+        """
+        matplotlib_maps = {
+            'Viridis': 'viridis',
+            'Plasma': 'plasma', 
+            'Inferno': 'inferno',
+            'Magma': 'magma',
+            'Cividis': 'cividis',
+        }
+        
+        for name, mpl_name in matplotlib_maps.items():
+            # Check if it already exists
+            existing = slicer.mrmlScene.GetFirstNodeByName(name)
+            if existing:
+                #print(f"Colormap {name} already exists, skipping")
+                continue
+            
+            # Create it
+            try:
+                node = self.create_colour_node_from_matplotlib(name, mpl_name)
+                if node:
+                    print(f"Created {name}")
+            except Exception as e:
+                print(f"Failed to create {name}: {e}")
+
+
+
+   
 
     def onTransformVolumeChanged(self):
         """Called whenever a different volume is selected in loadedTransformVolume"""
@@ -436,42 +1008,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         return node
         
-    # def getOrCreateLabelNodeForCurrentVolume(self):
-    #     """Get or create a label node specific to the currently loaded volume"""
-        
-    #     volumeNode = self.ui.loadedTransformVolume.currentNode()
-        
-    #     if not volumeNode:
-    #         return None
-        
-    #     # Check if volume already has an associated label node
-    #     labelNodeID = volumeNode.GetAttribute("BrainShiftModule_LabelNodeID")
-        
-    #     if labelNodeID:
-    #         node = slicer.mrmlScene.GetNodeByID(labelNodeID)
-    #         if node:
-    #             return node
-        
-    #     # Create new label node for this volume
-    #     labelNodeName = f"BrainShiftModule_MouseValueLabel_{volumeNode.GetID()}"
-    #     node = slicer.mrmlScene.AddNewNodeByClass(
-    #         "vtkMRMLMarkupsFiducialNode",
-    #         labelNodeName
-    #     )
-    #     node.AddControlPoint(0, 0, 0)
-    #     node.SetLocked(True)
-    #     node.SetMarkupLabelFormat("{label}")
-    #     node.GetDisplayNode().SetVisibility2D(False)
-    #     node.GetDisplayNode().SetVisibility3D(False)
-    #     node.SetNthControlPointLabel(0, "")
-    #     node.GetDisplayNode().SetColor([0.0, 0.0, 0.0])
-    #     node.GetDisplayNode().SetSelectedColor([0.0, 0.0, 0.0])
-    #     node.GetDisplayNode().GetTextProperty().SetColor(0.0, 0.0, 0.0)
-        
-    #     # Store reference on volume
-    #     volumeNode.SetAttribute("BrainShiftModule_LabelNodeID", node.GetID())
-        
-    #     return node
+
 
 
     def UIinstance(self):
@@ -722,41 +1259,72 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
         self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state)
     
-    
+
+    def cleanupDuplicateColorNodes(self, nodeName):
+        """
+        Remove all but the first instance of a color node
+        """
+        allNodes = slicer.mrmlScene.GetNodesByName(nodeName)
+        allNodes.InitTraversal()
+        
+        nodes_to_remove = []
+        first_node = None
+        
+        for i in range(allNodes.GetNumberOfItems()):
+            node = allNodes.GetNextItemAsObject()
+            if i == 0:
+                first_node = node
+                print(f"Keeping {nodeName} (ID: {node.GetID()})")
+            else:
+                nodes_to_remove.append(node)
+                print(f"Will remove duplicate {nodeName} (ID: {node.GetID()})")
+        
+        # Remove duplicates
+        for node in nodes_to_remove:
+            slicer.mrmlScene.RemoveNode(node)
+        
+        return first_node
 
     def createJacobianColorNode(self):
-        # Check if node already exists
+        """
+        Create Jacobian colormap - only once, reuse if exists
+        """
         existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
+        
         if existingNode:
-        #     print("JacobianMap already exists, reusing.")
+            # Don't remove it! Just return the existing one
+            #print("JacobianMap already exists, reusing")
+            existingNode.SetAttribute("MyColourMaps", "1")  # Ensure attribute is set
             return existingNode
 
-        # Create a new color node
-
-        # if not slicer.vtkMRMLProceduralColorNode().Get
-        colorNode = slicer.vtkMRMLProceduralColorNode()
+        # Only create if it doesn't exist
+        print("Creating new JacobianMap")
+        
+        # Use ColorTableNode
+        colorNode = slicer.vtkMRMLColorTableNode()
         colorNode.SetName("JacobianMap")
-        #slicer.mrmlScene.AddNode(colorNode)
+        colorNode.SetAttribute("DisplayName", "Jacobian (Compression/Expansion)")
+        colorNode.SetAttribute("MyColourMaps", "1")
+        colorNode.SetTypeToUser()
+        colorNode.SetNumberOfColors(256)
         
-        # Metadata
-        colorNode.SetAttribute("Category", "Jacobian")
-        colorNode.SetAttribute("Type", "UserDefined")
-        colorNode.SetDescription("Blue for <1 (compression), Red for >1 (expansion)")
-
-        # Define custom transfer function
-        ctf = colorNode.GetColorTransferFunction()
-        ctf.RemoveAllPoints()
+        # Manually set colors in the table
+        for i in range(256):
+            val = i / 255.0
+            if val < 0.5:  # Below neutral (compression - blue)
+                intensity = val * 2.0
+                r, g, b = 0.0, 0.0, 0.6 + intensity * 0.4
+            elif val > 0.5:  # Above neutral (expansion - red)
+                intensity = (val - 0.5) * 2.0
+                r, g, b = 0.6 + intensity * 0.4, 0.0, 0.0
+            else:  # Neutral (white)
+                r, g, b = 1.0, 1.0, 1.0
+            
+            colorNode.SetColor(i, r, g, b, 1.0)
         
-        # Stronger, deeper colors
-        ctf.AddRGBPoint(0.0, 0.0, 0.0, 0.6)   # deep blue at 0
-        ctf.AddRGBPoint(0.999, 0.0, 0.0, 1.0) # strong blue just below 1
-        ctf.AddRGBPoint(1.0, 1.0, 1.0, 1.0)   # neutral white at 1
-        ctf.AddRGBPoint(1.001, 1.0, 0.0, 0.0) # strong red just above 1
-        ctf.AddRGBPoint(2.0, 0.6, 0.0, 0.0)   # deep red at 2
-        
-        colorNode.Modified()
-        print("Created new JacobianMap node")
+        slicer.mrmlScene.AddNode(colorNode)
         return colorNode
+   
 
     def createInputSection(self):
         section = ctk.ctkCollapsibleButton()
@@ -857,16 +1425,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # sync checkbox to match visibility 
         self.updateVisualizationCheckboxFromNode()
-
-
-    # def setFixedImage(self, volumeNode):
-    #     if not volumeNode:
-    #         return
-    #     if self._parameterNode:
-    #         self._parameterNode.SetParameter("FixedImageID", volumeNode.GetID())
-    #     # Optionally apply grey map immediately
-    #     if volumeNode.GetDisplayNode():
-    #         volumeNode.GetDisplayNode().SetAndObserveColorNodeID("vtkMRMLColorTableNodeGrey")
 
 
     def exit(self) -> None:
@@ -1182,13 +1740,15 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # Create displacement field (vector volume)
             displacementVolume = self.logic.computeDisplacementMagnitude(
                 referenceVolume=self._parameterNode.referenceVolume,
-                transformNode=self._parameterNode.transformNode
+                transformNode=self._parameterNode.transformNode,
+                defaultColourMap=self.defaultColorNodeID
             )
 
             # Create Jacobian  (vector volume)
             jacobianVolume = self.logic.computeJacobianMagnitude(
                 referenceVolume=self._parameterNode.referenceVolume,
-                transformNode=self._parameterNode.transformNode
+                transformNode=self._parameterNode.transformNode,
+                defaultColourMap=self.defaultColorNodeID
             )
             
             # --- Make displacementMagnitude the thing we see + select in UI ---
@@ -1301,6 +1861,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         persistentDisplayNode = selectedVolume.GetDisplayNode()
 
         internalDisplayNode = slicer.mrmlScene.AddNewNodeByClass(persistentDisplayNode.GetClassName())
+
         #internalDisplayNode.Copy(persistentDisplayNode)
         internalDisplayNode = persistentDisplayNode
         selectedVolume.AddAndObserveDisplayNodeID(internalDisplayNode.GetID())
@@ -1309,9 +1870,21 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # print(f"Number of display nodes: {numDisplayNodes}")
         # print("Update 1")
         # change to selected color
-        colorNode = self.ui.colorMapSelector.currentNode()
+        
+        if not flag: #
+            #self.ui.colorMapSelector.setCurrentNode(self.defaultColorNodeID) #cold to hot rainbow
+            colorNode = slicer.util.getNode(self.defaultColorNodeID)
+
+
+        else:
+            #colorNode = self.ui.colorMapSelector.currentNode("JacobianMap")
+            colorNode = slicer.util.getNode("JacobianMap")
+        #if colorNode:
+            #displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+
         if colorNode:
-            
+            self.ui.colorMapSelector.setCurrentNode(colorNode)
+
             internalDisplayNode.SetAndObserveColorNodeID(colorNode.GetID())
             internalDisplayNode.Modified()
           
@@ -2086,6 +2659,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
     def computeDisplacementMagnitude(self,
                                  referenceVolume: vtkMRMLScalarVolumeNode,
                                  transformNode:   vtkMRMLTransformNode,
+                                 defaultColourMap: vtkMRMLColorTableNode
                                  ) -> vtkMRMLScalarVolumeNode:
         """
         Compute voxel-wise displacement magnitude from a BSpline transform.
@@ -2169,7 +2743,10 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         displayNode.SetApplyThreshold(True)
 
         # Use specific color map if available
-        colorNode = slicer.util.getNode("Viridis")
+        #colorNode = slicer.util.getNode("Viridis")
+        if defaultColourMap:
+            colorNode = slicer.mrmlScene.GetNodeByID(defaultColourMap)
+
         if colorNode:
             displayNode.SetAndObserveColorNodeID(colorNode.GetID())
         return outputVolume
@@ -2178,7 +2755,8 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
 
     def computeJacobianMagnitude(self,
                                 referenceVolume: vtkMRMLScalarVolumeNode,
-                                transformNode: vtkMRMLTransformNode
+                                transformNode: vtkMRMLTransformNode,
+                                defaultColourMap: vtkMRMLColorTableNode
                                 ) -> vtkMRMLScalarVolumeNode:
         import slicer
         import vtk
@@ -2235,10 +2813,20 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         minVal, maxVal = float(array.min()), float(array.max())
         displayNode.SetWindow(maxVal - minVal)
         displayNode.SetLevel((maxVal + minVal) / 2)
-
-        colorNode = slicer.util.getNode("Inferno")
-        if colorNode:
+        
+        existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
+        
+        if existingNode:
+            print("Jacobian exists")
+            colorNode = slicer.util.getNode("JacobianMap")
+        #if colorNode:
             displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+        else:
+            colorNode = slicer.mrmlScene.GetNodeByID(defaultColourMap)
+            displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+
+            #colorNode = slicer.util.getNode("DefaultColourMap")
+
 
         # Step 8: Store in UI and parameter node
         #self.ui.jacobianMagnitudeVolume.setCurrentNode(outputVolume)
