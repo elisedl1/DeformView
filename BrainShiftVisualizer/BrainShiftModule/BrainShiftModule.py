@@ -304,7 +304,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.selectedLandmarks.setReadOnly(True)
         self.ui.landmarkEuclidianDistance.setReadOnly(True)
 
-
+        #track whether it's the first time for each flag type (first time with flag=0, first time with flag=1) for colour 
+        self.firstTimeFlag0 = True  # First time loading a volume with flag=0
+        self.firstTimeFlag1 = True  # First time loading a volume with flag=1
+        self.lastLoadedFlag = None
         # # If there's already a volume loaded, reset its color map to default
         # if self.ui.loadedTransformVolume.currentNode():
         #     volumeNode = self.ui.loadedTransformVolume.currentNode()
@@ -2015,6 +2018,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         #selectedVolume = self.ui.existingDisplacementVolumeSelector.currentNode()
         selectedVolume = self.ui.loadedTransformVolume.currentNode()
+
+
         flag = self.getBrainShiftFlag(selectedVolume)
         # print("BrainShiftFlag =", flag)
 
@@ -2046,22 +2051,48 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         internalDisplayNode = persistentDisplayNode
         selectedVolume.AddAndObserveDisplayNodeID(internalDisplayNode.GetID())
 
-        numDisplayNodes = selectedVolume.GetNumberOfDisplayNodes()      
+        numDisplayNodes = selectedVolume.GetNumberOfDisplayNodes() 
+        
+        currentColorNode = internalDisplayNode.GetColorNode()
+        print("currentColorNode", currentColorNode)
         # print(f"Number of display nodes: {numDisplayNodes}")
         # print("Update 1")
         # change to selected color
         
-        if not flag: #
-            #self.ui.colorMapSelector.setCurrentNode(self.defaultColorNodeID) #cold to hot rainbow
-            colorNode = slicer.util.getNode(self.defaultColorNodeID)
+        #HERE!
+        #if not currentColorNode:
+        print(f"First time loading - auto-setting color map (flag={flag})")
+        
+        # if not flag and self.firstTimeFlag0: 
+        #     #self.ui.colorMapSelector.setCurrentNode(self.defaultColorNodeID) #cold to hot rainbow
+        #     colorNode = slicer.util.getNode(self.defaultColorNodeID)
+        #     self.firstTimeFlag0 = False
 
-
+        # elif flag == 1 and self.firstTimeFlag1:
+        #     print("First time loading Jacobian (flag=1) - setting JacobianMap")
+        #     colorNode = slicer.util.getNode("JacobianMap")
+        #     self.firstTimeFlag1 = False
+        
+        # else:
+        #     # Not first time for this flag type - use current selection
+        #     print(f"Already loaded this type before - using current selection")
+        #     colorNode = self.ui.colorMapSelector.currentNode()
+        if self.lastLoadedFlag is None or self.lastLoadedFlag != flag:
+            print(f"Flag changed from {self.lastLoadedFlag} to {flag} - auto-setting color map")
+            
+            if flag == 0:
+                colorNode = slicer.util.getNode(self.defaultColorNodeID)
+            else:
+                colorNode = slicer.util.getNode("JacobianMap")
+            
+            self.lastLoadedFlag = flag  # Update the last flag
         else:
-            #colorNode = self.ui.colorMapSelector.currentNode("JacobianMap")
-            colorNode = slicer.util.getNode("JacobianMap")
-        #if colorNode:
-            #displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            # Not first time for this flag type - use current selection
+            print(f"Already loaded this type before - using current selection")
+            colorNode = self.ui.colorMapSelector.currentNode()
 
+
+    
         if colorNode:
             self.ui.colorMapSelector.setCurrentNode(colorNode)
 
