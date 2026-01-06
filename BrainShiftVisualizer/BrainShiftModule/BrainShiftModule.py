@@ -515,22 +515,22 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # List of colormaps to ensure exist
         nodes_to_add = [
-            ("HotToColdRainbow", "vtkMRMLColorTableNodeFileHotToColdRainbow.txt"),
-            ("DivergingBlueRed", "vtkMRMLColorTableNodeFileDivergingBlueRed.txt"),
-            ("FullRainbow", "vtkMRMLColorTableNodeFullRainbow"),
-            ("Iron", "vtkMRMLColorTableNodeIron"),
-            ("Grey", "vtkMRMLColorTableNodeGrey"),
+            ("Hot-To-Cold Rainbow", "vtkMRMLColorTableNodeFileColdToHotRainbow.txt"),
+            ("Diverging Blue/Red", "vtkMRMLColorTableNodeFileDivergingBlueRed.txt"),
+            #("Full Rainbow", "vtkMRMLColorTableNodeFullRainbow"),
+            #("Iron", "vtkMRMLColorTableNodeIron"),
+            #("Grey", "vtkMRMLColorTableNodeGrey"),
             ("Plasma", "vtkMRMLColorTableNodeFilePlasma.txt"),
-            ("Cividis", "vtkMRMLColorTableNodeFileCividis.txt"),
-            ("Inferno", "vtkMRMLColorTableNodeFileInferno.txt"),
+            #("Cividis", "vtkMRMLColorTableNodeFileCividis.txt"),
+            #("Inferno", "vtkMRMLColorTableNodeFileInferno.txt"),
             ("Viridis", "vtkMRMLColorTableNodeFileViridis.txt"),
             ("Rainbow", "vtkMRMLColorTableNodeRainbow"),
-            ("Ocean", "vtkMRMLColorTableNodeOcean"),
-            ("InvertedGrey", "vtkMRMLColorTableNodeInvertedGrey"),
-            ("fMRI", "vtkMRMLColorTableNodefMRI"),
-            ("Yellow", "vtkMRMLColorTableNodeYellow"),
-            ("Warm1", "vtkMRMLColorTableNodeWarm1"),
-            ("Magma", "vtkMRMLColorTableNodeFileMagma.txt"),
+            #("Ocean", "vtkMRMLColorTableNodeOcean"),
+            #("InvertedGrey", "vtkMRMLColorTableNodeInvertedGrey"),
+            #("fMRI", "vtkMRMLColorTableNodefMRI"),
+            #("Yellow", "vtkMRMLColorTableNodeYellow"),
+            #("Warm1", "vtkMRMLColorTableNodeWarm1"),
+            #("Magma", "vtkMRMLColorTableNodeFileMagma.txt"),
             #("Isodose_ColorTable_Relative", "Isodose_ColorTable_Relative"),
         ]
 
@@ -566,8 +566,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         #self.verify_colormap("Viridis")
           # Set default to Rainbow
-        HotToColdRainbowNode = slicer.mrmlScene.GetNodeByID(f'vtkMRMLColorTableNodeFileHotToColdRainbow.txt')
-        self.defaultColorNodeID = 'vtkMRMLColorTableNodeFileHotToColdRainbow.txt'
+        HotToColdRainbowNode = slicer.mrmlScene.GetNodeByID(f'vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
+        self.defaultColorNodeID = 'vtkMRMLColorTableNodeFileColdToHotRainbow.txt'
         print(self.defaultColorNodeID)
         #ColdToHotRainbowNode = slicer.mrmlScene.GetFirstNodeByName("HotToColdRainbow")
         if HotToColdRainbowNode:
@@ -1259,7 +1259,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         landmarkLayout.setVerticalSpacing(12)
         landmarkLayout.setLabelAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)
 
-        landmarkLayout.addRow("Convert .tag File:", self.ui.ConvertTagFCSVButton)
+        # landmarkLayout.addRow("Convert .tag File:", self.ui.ConvertTagFCSVButton)
         landmarkLayout.addRow("Select Landmarks:", self.ui.LandmarkSelectorComboBox)
         landmarkLayout.addRow("Load Landmarks:", self.ui.LoadExpertLabelsButton)
 
@@ -1271,8 +1271,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.landmarkEuclidianDistance.setReadOnly(True)
         self.ui.selectedLandmarks.setStyleSheet("QLineEdit { background-color:gray; color: #333; }")
         self.ui.landmarkEuclidianDistance.setStyleSheet("QLineEdit { background-color:gray; color: #333; }")
-        landmarkLayout.addRow("Active Landmarks:", self.ui.selectedLandmarks)
-        landmarkLayout.addRow("Distance (mm):", self.ui.landmarkEuclidianDistance)
+        # landmarkLayout.addRow("Active Landmarks:", self.ui.selectedLandmarks)
+        # landmarkLayout.addRow("Distance (mm):", self.ui.landmarkEuclidianDistance)
 
 
         # === SECTION 4: VISUALIZATION SETTINGS ===
@@ -1325,6 +1325,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         thresLayout.addLayout(spinBoxLayout)
 
         vizLayout.addRow("Threshold Range:", thresLayout)
+
 
 
         windowLayout = qt.QVBoxLayout()
@@ -2233,6 +2234,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     legendNode.SetVisibility(False)
 
                     if flag == 0:  # displacement
+                        #legendNode.SetLabelFormat("%.2f") 
                         legendNode.SetTitleText("Displacement (mm)")
                         legendNode.SetUseColorNamesForLabels(False)  # show numeric values
                         legendNode.SetVisibility(True)
@@ -2308,17 +2310,23 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             
             window = displayNode.GetWindow()
             
-            minWindow = displayNode.GetWindowLevelMin()
-            maxWindow = displayNode.GetWindowLevelMax()
+            #minWindow = displayNode.GetWindowLevelMin()
+            #maxWindow = displayNode.GetWindowLevelMax()
             
+            minWindow = 0.0001  # Prevent zero window
+            maxWindow = maxScalar - minScalar  # Maximum width is full range
+    
+            #IJZF changed to use full range in the colour legend
+            displayNode.SetWindowLevelMinMax(minScalar, maxScalar)  # Your actual range
+
             # print("Current Window:", window)
-            # print("Window Range:", minWindow, "to", maxWindow)
+            print("Window Range:", minWindow, "to", maxWindow)
             
             # Set up the slider
             self.ui.colourWindowSlider.singleStep = step
             self.ui.colourWindowSlider.minimum = minWindow
             self.ui.colourWindowSlider.maximum = maxWindow
-            self.ui.colourWindowSlider.value = window  # Set current window as default
+            self.ui.colourWindowSlider.value = min(window, maxWindow)#window  # Set current window as default
             
             # Connect slider to update function
             self.ui.colourWindowSlider.valueChanged.connect(self.onWindowChanged)
@@ -2326,18 +2334,23 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # --- Colour Level (brightness)---
             level = displayNode.GetLevel()
 
-            minLevel = displayNode.GetWindowLevelMin()
-            maxLevel = displayNode.GetWindowLevelMax()
-
+            #minLevel = displayNode.GetWindowLevelMin()
+            #maxLevel = displayNode.GetWindowLevelMax()
+            # Level controls the "center" of the visible range
+            # Constrain it to stay within your actual data range
+            minLevel = minScalar
+            maxLevel = maxScalar
+                
             # print("Current Level:", level)
-            # print("Level Range:", minLevel, "to", maxLevel)
+            print("Level Range:", minLevel, "to", maxLevel)
 
             # Set up the slider
             
             self.ui.colourLevelSlider.singleStep = step
             self.ui.colourLevelSlider.minimum = minLevel
             self.ui.colourLevelSlider.maximum = maxLevel
-            self.ui.colourLevelSlider.value = level  # Set current level as default
+            self.ui.colourLevelSlider.value = (minScalar + maxScalar) / 2.0  # Center by default#level  # Set current level as default
+            self.ui.colourLevelSlider.setValue(1.0)
 
             # Connect slider to update function
             self.ui.colourLevelSlider.valueChanged.connect(self.onLevelChanged)
@@ -2345,25 +2358,61 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             
 
-
-
     def onWindowChanged(self, value):
-        """Update the display node when slider changes"""
-        volumeNode = self.ui.loadedTransformVolume.currentNode()
-
-        displayNode = volumeNode.GetDisplayNode()
-        if displayNode:
-            currentLevel = displayNode.GetLevel()
-            displayNode.SetWindowLevel(value, currentLevel)
-
+        selectedVolume = self.ui.loadedTransformVolume.currentNode()
+        if selectedVolume:
+            displayNode = selectedVolume.GetDisplayNode()
+            if displayNode:
+                level = displayNode.GetLevel()
+                window = value
+                
+                # Calculate the min and max based on window and level
+                calculated_min = level - window / 2.0
+                calculated_max = level + window / 2.0
+                
+                # Clamp to your actual data range
+                clamped_min = max(calculated_min, self.scalarRange[0])
+                clamped_max = min(calculated_max, self.scalarRange[1])
+                
+                # Set the clamped values
+                displayNode.SetWindowLevelMinMax(clamped_min, clamped_max)
 
     def onLevelChanged(self, value):
-        """Update the display node when level slider changes"""
-        volumeNode = self.ui.loadedTransformVolume.currentNode()
-        displayNode = volumeNode.GetDisplayNode()
-        if displayNode:
-            currentWindow = displayNode.GetWindow()
-            displayNode.SetWindowLevel(currentWindow, value)
+        selectedVolume = self.ui.loadedTransformVolume.currentNode()
+        if selectedVolume:
+            displayNode = selectedVolume.GetDisplayNode()
+            if displayNode:
+                window = displayNode.GetWindow()
+                level = value
+                
+                # Calculate the min and max based on window and level
+                calculated_min = level - window / 2.0
+                calculated_max = level + window / 2.0
+                
+                # Clamp to your actual data range
+                clamped_min = max(calculated_min, self.scalarRange[0])
+                clamped_max = min(calculated_max, self.scalarRange[1])
+                
+                # Set the clamped values
+                displayNode.SetWindowLevelMinMax(clamped_min, clamped_max)
+
+    # def onWindowChanged(self, value):
+    #     """Update the display node when slider changes"""
+    #     volumeNode = self.ui.loadedTransformVolume.currentNode()
+
+    #     displayNode = volumeNode.GetDisplayNode()
+    #     if displayNode:
+    #         currentLevel = displayNode.GetLevel()
+    #         displayNode.SetWindowLevel(value, currentLevel)
+
+
+    # def onLevelChanged(self, value):
+    #     """Update the display node when level slider changes"""
+    #     volumeNode = self.ui.loadedTransformVolume.currentNode()
+    #     displayNode = volumeNode.GetDisplayNode()
+    #     if displayNode:
+    #         currentWindow = displayNode.GetWindow()
+    #         displayNode.SetWindowLevel(currentWindow, value)
 
     def getBrainShiftFlag(self, volumeNode):
         """
