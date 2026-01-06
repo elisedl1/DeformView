@@ -1525,6 +1525,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         colorNode.SetAttribute("MyColourMaps", "1")
         colorNode.SetTypeToUser()
         colorNode.SetNumberOfColors(256)
+        colorNode.SetNoName("")  # Empty string, or
+        colorNode.SetSingletonTag("JacobianMap")  # Set singleton tag
+
         
         # Set colors first
         for i in range(256):
@@ -1545,16 +1548,17 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             #colorNode.SetColor(i, "")
             colorNode.SetColor(i, r, g, b, 1.0)
-            #THIS IS SO NECESSARY: 
             colorNode.SetColorName(i, "")
 
-        colorNode.SetColorName(64, "Contracting")
-        colorNode.SetColorName(191, "Expanding")
+            #THIS IS SO NECESSARY: 
 
-        print(colorNode.GetColorName(0))
-        # colorNode.SetColorName(0, "Contracting")
-        # colorNode.SetColorName(128, "Neutral")  
-        # colorNode.SetColorName(255, "Expanding") 
+        # lut = colorNode.GetLookupTable()
+        # if lut:
+        #     lut.SetVectorModeToComponent()  # Example: set properties
+
+        # colorNode.SetColorName(64, "Contracting")
+        # colorNode.SetColorName(191, "Expanding")
+                
         slicer.mrmlScene.AddNode(colorNode)
 
         return colorNode
@@ -2170,12 +2174,18 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 colorNode = slicer.util.getNode(self.defaultColorNodeID)
             else:
                 colorNode = slicer.util.getNode("JacobianMap")
+                colorNode.SetNoName("")  # Empty string, or
+
+                # colorNode.SetColorName(64, "Contracting")
+                # colorNode.SetColorName(191, "Expanding")
+                
             
             self.lastLoadedFlag = flag  # Update the last flag
         else:
             # Not first time for this flag type - use current selection
             print(f"Already loaded this type before - using current selection")
             colorNode = self.ui.colorMapSelector.currentNode()
+            colorNode.SetNoName("")  # Empty string, or
 
 
     
@@ -2230,6 +2240,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
            
                     elif flag == 1:  # jacobian
+                        legendNode.SetNumberOfLabels(0)  # Show only 3 labels
 
                         legendNode.SetTitleText("Jacobian Determinant")
 
