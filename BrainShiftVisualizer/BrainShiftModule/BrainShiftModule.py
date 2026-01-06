@@ -2728,7 +2728,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             
             # Show in slice views by setting foreground opacity
             normalizedValue = self.ui.opacitySlider.value / 100
-            
+            print("Setting opacity to", normalizedValue)
             for sliceName in slicer.app.layoutManager().sliceViewNames():
                 sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
                 sliceComposite.SetForegroundVolumeID(self.volumeNode.GetID())
