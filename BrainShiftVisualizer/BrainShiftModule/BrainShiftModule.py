@@ -1556,8 +1556,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # if lut:
         #     lut.SetVectorModeToComponent()  # Example: set properties
 
-        # colorNode.SetColorName(64, "Contracting")
-        # colorNode.SetColorName(191, "Expanding")
+        colorNode.SetColorName(64, "Contracting")
+        colorNode.SetColorName(191, "Expanding")
                 
         slicer.mrmlScene.AddNode(colorNode)
 
@@ -2230,6 +2230,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 legendNode = colorLegendNodes.GetItemAsObject(i)
                 if legendNode.GetNodeReferenceID("primaryDisplay") == displayNode.GetID():
                     legendNode.SetTitleText(" ")  # clear title for both jacobian and displacement
+                    legendNode.SetVisibility(False)
 
                     if flag == 0:  # displacement
                         legendNode.SetTitleText("Displacement (mm)")
@@ -2240,12 +2241,14 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
            
                     elif flag == 1:  # jacobian
-                        legendNode.SetNumberOfLabels(0)  # Show only 3 labels
+
+                        #legendNode.SetNumberOfLabels(0)  # Show only 3 labels
 
                         legendNode.SetTitleText("Jacobian Determinant")
 
                         legendNode.SetUseColorNamesForLabels(True)  # Show only named colors
-                        legendNode.SetNumberOfLabels(3)  # Show only 3 labels
+                        legendNode.SetNumberOfLabels(2)  # Show only 3 labels
+                        legendNode.SetVisibility(True)
 
                         legendNode.SetMaxNumberOfColors(256)          
                         legendNode.SetSize(0.2, 0.5)
@@ -2254,7 +2257,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                         titleProperty = legendNode.GetTitleTextProperty()
                         titleProperty.SetFontSize(12)
                         
-                        legendNode.SetVisibility(True)
                         
 
 
