@@ -304,6 +304,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
 
+
+        #self.ui.resetWindowLevelButton = qt.QPushButton("Reset Window/Level")
+
         # allow for user to adjust opacity
         self.ui.opacitySlider.valueChanged.connect(self.onOpacityChanged)
         self.onOpacityChanged(self.ui.opacitySlider.value)
@@ -1360,9 +1363,11 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         windowLayout = qt.QVBoxLayout()
         windowLayout.setSpacing(5)
+
         #vizLayout.addRow("Colour Window:", self.ui.colourWindowSlider)
         colourWindowSliderLayout = qt.QHBoxLayout()
         colourWindowSliderLayout.addWidget(self.ui.colourWindowSlider)
+
         windowLayout.addLayout(colourWindowSliderLayout)
 
         # colourWindowLayout = qt.QHBoxLayout()
@@ -1384,6 +1389,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         colourLevelSliderLayout.addWidget(self.ui.colourLevelSlider)
         levelLayout.addLayout(colourLevelSliderLayout)
 
+
         # colourLevelLayout = qt.QHBoxLayout()
         # colourLevelLayout.addWidget(qt.QLabel("Min:"))
         # colourLevelLayout.addWidget(self.ui.minColourLevel)
@@ -1393,6 +1399,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # levelLayout.addLayout(colourLevelLayout)
         
         vizLayout.addRow("Colour Level (brightness):", levelLayout)
+        
+        # colourResetLayout = qt.QHBoxLayout()
+        # colourResetLayout.addWidget()
+        vizLayout.addRow(self.ui.resetWindowLevelButton)
 
 
 
@@ -2381,14 +2391,15 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             displayNode.SetWindowLevelMinMax(minScalar, maxScalar)  # Your actual range
 
             # print("Current Window:", window)
-            print("Window Range:", minWindow, "to", maxWindow)
+            #print("Window Range:", minWindow, "to", maxWindow)
             
             # Set up the slider
             self.ui.colourWindowSlider.singleStep = step
             self.ui.colourWindowSlider.minimum = minWindow
             self.ui.colourWindowSlider.maximum = maxWindow
             self.ui.colourWindowSlider.value = min(window, maxWindow)#window  # Set current window as default
-            
+            self.ui.colourWindowSlider.setValue(min(window, maxWindow))
+
             # Connect slider to update function
             self.ui.colourWindowSlider.valueChanged.connect(self.onWindowChanged)
             
@@ -2403,21 +2414,45 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             maxLevel = maxScalar
                 
             # print("Current Level:", level)
-            print("Level Range:", minLevel, "to", maxLevel)
+            #print("Level Range:", minLevel, "to", maxLevel)
 
             # Set up the slider
             
             self.ui.colourLevelSlider.singleStep = step
             self.ui.colourLevelSlider.minimum = minLevel
             self.ui.colourLevelSlider.maximum = maxLevel
-            self.ui.colourLevelSlider.value = (minScalar + maxScalar) / 2.0  # Center by default#level  # Set current level as default
-            self.ui.colourLevelSlider.setValue(1.0)
+            self.ui.colourLevelSlider.value = (minScalar + maxScalar) / 3.0  # Center by default#level  # Set current level as default
+            self.ui.colourLevelSlider.setValue((minScalar + maxScalar) / 3.0)
 
             # Connect slider to update function
             self.ui.colourLevelSlider.valueChanged.connect(self.onLevelChanged)
 
 
+            self.defaultWindow = maxScalar - minScalar
+            self.defaultLevel = (minScalar + maxScalar) / 3.0 #3.0 = 2.6, 2.0 = 2.97, 
             
+            self.ui.resetWindowLevelButton.clicked.connect(self.onResetWindowLevel)
+            #print("Button exists:", self.ui.resetWindowLevelButton)
+            #elf.ui.resetWindowLevelButton.connect("clicked()", self.onResetWindowLevel)
+
+
+
+    def onResetWindowLevel(self):
+
+        print("Resetting window/level to defaults ")
+        selectedVolume = self.ui.loadedTransformVolume.currentNode()
+        if selectedVolume:
+            displayNode = selectedVolume.GetDisplayNode()
+            if displayNode:
+                # Reset to full data range
+                displayNode.SetWindowLevelMinMax(self.scalarRange[0], self.scalarRange[1])
+                
+                # Update slider values to match
+                self.ui.colourWindowSlider.value = self.defaultWindow
+                self.ui.colourLevelSlider.value = self.defaultLevel
+                
+                print(f"Reset window/level to defaults: Window={self.defaultWindow}, Level={self.defaultLevel}")
+                
 
     def onWindowChanged(self, value):
         selectedVolume = self.ui.loadedTransformVolume.currentNode()
@@ -2428,8 +2463,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 window = value
                 
                 # Calculate the min and max based on window and level
-                calculated_min = level - window / 2.0
-                calculated_max = level + window / 2.0
+                calculated_min = level - window / 3.0
+                calculated_max = level + window / 3.0
                 
                 # Clamp to your actual data range
                 clamped_min = max(calculated_min, self.scalarRange[0])
@@ -3197,7 +3232,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         array = sitk.GetArrayFromImage(dispMag)
         minVal, maxVal = float(array.min()), float(array.max())
         displayNode.SetWindow(maxVal - minVal)
-        displayNode.SetLevel((maxVal + minVal) / 2)
+        displayNode.SetLevel((maxVal + minVal) / 3.0)
 
         # Apply threshold for visibility
         displayNode.SetThreshold(0.05, 10.0)
