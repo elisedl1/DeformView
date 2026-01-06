@@ -158,9 +158,15 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # set the scene for each individual node widget
         self.ui.referenceVolume.setMRMLScene(slicer.mrmlScene)
+        self.ui.referenceVolume.setToolTip(
+            "Select deformed image.\n"
+        )
         self.ui.transformNode.setMRMLScene(slicer.mrmlScene)
         self.ui.displacementMagnitudeVolume.setMRMLScene(slicer.mrmlScene)
         self.ui.backgroundVolume.setMRMLScene(slicer.mrmlScene)
+        self.ui.backgroundVolume.setToolTip(
+            "Select non-deformed image.\n"
+        )
         #self.ui.ConvertTagFCSVNode.setMRMLScene(slicer.mrmlScene)
 
         self.ui.backgroundVolume.nodeTypes = ["vtkMRMLScalarVolumeNode"]
@@ -171,9 +177,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.referenceVolume.addEnabled = False
         self.ui.referenceVolume.removeEnabled = False
 
-        self.ui.displacementMagnitudeVolume.nodeTypes = ["vtkMRMLScalarVolumeNode"]
-        self.ui.displacementMagnitudeVolume.addEnabled = True  # can create new output volume
-        self.ui.displacementMagnitudeVolume.removeEnabled = True
+        # self.ui.displacementMagnitudeVolume.nodeTypes = ["vtkMRMLScalarVolumeNode"]
+        # self.ui.displacementMagnitudeVolume.addEnabled = True  # can create new output volume
+        # self.ui.displacementMagnitudeVolume.removeEnabled = True
 
         self.ui.transformNode.nodeTypes = ["vtkMRMLTransformNode"]
         self.ui.transformNode.addEnabled = False
@@ -182,6 +188,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #self.ui.ConvertTagFCSVNode.nodeTypes = ["vtkMRMLTransformNode"]
         self.ui.transformNode.addEnabled = False
         self.ui.transformNode.removeEnabled = False 
+        self.ui.transformNode.setToolTip(
+            "Select known transformation between moving and fixed images.\n"
+        )
 
         self.ui.loadedTransformVolume.nodeTypes = ["vtkMRMLScalarVolumeNode"]
         self.ui.loadedTransformVolume.setMRMLScene(slicer.mrmlScene)
@@ -197,9 +206,18 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.loadDisplacementButton.connect(
             "clicked(bool)", lambda: self.onLoadDisplacementVolume(flag=0)
         )
+        self.ui.loadDisplacementButton.setToolTip(
+            "Load a displacement field volume.\n"
+            "Used to visualize voxel-wise displacement magnitude (mm)."
+        )
 
+        # load jacobian button
         self.ui.loadJacobianButton.connect(
             "clicked(bool)", lambda: self.onLoadDisplacementVolume(flag=1)
+        )
+        self.ui.loadJacobianButton.setToolTip(
+            "Load the determinant of the Jacobian volume.\n"
+            "Used to visualize voxel-wise expansion and compression (%)."
         )
 
       
@@ -232,10 +250,16 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #Step 2: Has landmark in it to check if it's modified - but seems wrong
         self.ui.enableHoverDisplayCheckbox.setChecked(False)  # start disabled
         self.ui.enableHoverDisplayCheckbox.connect("toggled(bool)", self.onToggleHoverDisplay)
+        self.ui.enableHoverDisplayCheckbox.setToolTip(
+            "Toggle mm displacement or '%' expansion/compression values\n"
+        )
 
 
         self.ui.enableDisplacementVisualizationCheckbox.setChecked(False)  # start disabled
         self.ui.enableDisplacementVisualizationCheckbox.connect("toggled(bool)", self.onToggleDisplacementVisualizationDisplay)
+        self.ui.enableDisplacementVisualizationCheckbox.setToolTip(
+            "Toggle overlay\n"
+        )
 
 
 
@@ -244,7 +268,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.backgroundVolume.setProperty("SlicerParameterName", "backgroundVolume")
 
         # connect US Border display checkbox
-        self.ui.enableUsBorderDisplay.toggled.connect(self.onToggleUsDisplay)
+        # self.ui.enableUsBorderDisplay.toggled.connect(self.onToggleUsDisplay)
         
 
         
@@ -299,7 +323,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         
         # Buttons
+        self.ui.applyButton.setToolTip(
+            "Compute a displacement magnitude (mm) volume or the determinant of the Jacobian volume.\n"
+            "Displacement volume automatically loaded in"
+        )
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
+
 
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
@@ -1199,7 +1228,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         inputLayout.addRow("Moving Image:", self.ui.referenceVolume)
         inputLayout.addRow("Fixed Image:", self.ui.backgroundVolume)
         inputLayout.addRow("Transformation:", self.ui.transformNode)
-        inputLayout.addRow("Output Volume:", self.ui.displacementMagnitudeVolume)
+        # inputLayout.addRow("Output Volume:", self.ui.displacementMagnitudeVolume)
 
         # Add some space before the button
         inputLayout.addRow("", qt.QWidget())  # Empty spacer row
@@ -1332,7 +1361,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         vizLayout.setVerticalSpacing(12)
         vizLayout.setLabelAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)
 
-        vizLayout.addRow(self.ui.enableUsBorderDisplay)
+        # vizLayout.addRow(self.ui.enableUsBorderDisplay)
 
         # Opacity with better layout
         opacityLayout = qt.QHBoxLayout()
@@ -2034,7 +2063,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.applyButton.toolTip = _("Compute voxel-wise displacement magnitude")
             self.ui.applyButton.enabled = True
         else:
-            self.ui.applyButton.toolTip = _("Select reference volume and transform")
+            # self.ui.applyButton.toolTip = _("Select reference volume and transform")
             self.ui.applyButton.enabled = False
 
 
@@ -2047,7 +2076,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             
             logging.info(f"Reference Volume: {self._parameterNode.referenceVolume}")
             logging.info(f"Transform Node: {self._parameterNode.transformNode}")
-            logging.info(f"Displacement Volume: {self._parameterNode.displacementMagnitudeVolume}")
+            # logging.info(f"Displacement Volume: {self._parameterNode.displacementMagnitudeVolume}")
 
             #TODO: stop duplicates of displacement/jacobian
             

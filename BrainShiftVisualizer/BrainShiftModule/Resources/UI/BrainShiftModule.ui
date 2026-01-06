@@ -120,7 +120,7 @@
       <bool>false</bool>
      </property>
      <property name="toolTip">
-      <string>Run the algorithm.</string>
+      <string/>
      </property>
      <property name="text">
       <string>Compute Displacement Field Mapping</string>
@@ -192,7 +192,7 @@
       <enum>Qt::RightToLeft</enum>
      </property>
      <property name="text">
-      <string>Enable Cursor Display (mm)</string>
+      <string>Enable Cursor Display (mm/%)</string>
      </property>
     </widget>
    </item>
@@ -369,6 +369,9 @@
    </item>
    <item row="28" column="1">
     <widget class="QPushButton" name="loadDisplacementButton">
+     <property name="toolTip">
+      <string extracomment="Tester"/>
+     </property>
      <property name="text">
       <string>Load Displacement Magnitude</string>
      </property>
