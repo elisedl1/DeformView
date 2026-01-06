@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1512</width>
+    <width>1507</width>
     <height>916</height>
    </rect>
   </property>
@@ -378,6 +378,13 @@
     <widget class="QPushButton" name="loadJacobianButton">
      <property name="text">
       <string>Load Jacobian</string>
+     </property>
+    </widget>
+   </item>
+   <item row="56" column="0">
+    <widget class="QPushButton" name="resetWindowLevelButton">
+     <property name="text">
+      <string>Reset Colour Window / Level to Default</string>
      </property>
     </widget>
    </item>
