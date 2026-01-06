@@ -1548,10 +1548,13 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             #THIS IS SO NECESSARY: 
             colorNode.SetColorName(i, "")
 
-  
         colorNode.SetColorName(64, "Contracting")
         colorNode.SetColorName(191, "Expanding")
-                
+
+        print(colorNode.GetColorName(0))
+        # colorNode.SetColorName(0, "Contracting")
+        # colorNode.SetColorName(128, "Neutral")  
+        # colorNode.SetColorName(255, "Expanding") 
         slicer.mrmlScene.AddNode(colorNode)
 
         return colorNode
@@ -2227,18 +2230,18 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
            
                     elif flag == 1:  # jacobian
-                        legendNode.SetNumberOfLabels(3)  # Show only 3 labels
 
                         legendNode.SetTitleText("Jacobian Determinant")
 
                         legendNode.SetUseColorNamesForLabels(True)  # Show only named colors
+                        legendNode.SetNumberOfLabels(3)  # Show only 3 labels
+
                         legendNode.SetMaxNumberOfColors(256)          
                         legendNode.SetSize(0.2, 0.5)
                         legendNode.SetPosition(0.85, 0.25)
                         
                         titleProperty = legendNode.GetTitleTextProperty()
                         titleProperty.SetFontSize(12)
-
                         
                         legendNode.SetVisibility(True)
                         
