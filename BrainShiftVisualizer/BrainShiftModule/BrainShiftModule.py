@@ -2196,7 +2196,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             scene = slicer.mrmlScene
             for i in range(scene.GetNumberOfNodesByClass("vtkMRMLScalarVolumeNode")):
                 node = scene.GetNthNodeByClass(i, "vtkMRMLScalarVolumeNode")
-                if node.GetName() and node.GetName().endswith(suffix):
+                if node.GetName() and suffix in node.GetName():
                     selectedVolume = node
                     break
 
@@ -2204,16 +2204,13 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if selectedVolume:
                 self.ui.loadedTransformVolume.setCurrentNode(selectedVolume)
 
-        # --- nothing found? show error and return ---
+        #  nothing found? show error and return
         if not selectedVolume or not selectedVolume.GetDisplayNode():
             slicer.util.errorDisplay(
                 "No displacement/Jacobian volume found in scene."
             )
             return
 
-
-        # flag = self.getBrainShiftFlag(selectedVolume)
-        # print("BrainShiftFlag =", flag)
 
         if not selectedVolume or not selectedVolume.GetDisplayNode():
             slicer.util.errorDisplay("Please select a volume before loading.")
@@ -3215,6 +3212,12 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         # Convert MRML BSpline transform to ITK transform
         itkTx = sitk.ReadTransform(transformNode.GetStorageNode().GetFileName())
 
+
+        print("MRML class:", transformNode.GetClassName())
+        vtkTx = transformNode.GetTransformFromParent()
+        print("VTK class:", vtkTx.GetClassName())
+
+
         # Resample the transform into a displacement field on the reference grid
         dispField = sitk.TransformToDisplacementField(
             itkTx,
@@ -3291,8 +3294,9 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
 
         refImage = sitkUtils.PullVolumeFromSlicer(referenceVolume)
 
-        
+        print(transformNode)
         itkTx = sitk.ReadTransform(transformNode.GetStorageNode().GetFileName())
+        print(itkTx)
 
         # Convert transform to displacement field in reference grid
         displacementField = sitk.TransformToDisplacementField(
