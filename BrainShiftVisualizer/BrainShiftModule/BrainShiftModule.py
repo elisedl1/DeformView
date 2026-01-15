@@ -2217,6 +2217,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if not selectedVolume or not selectedVolume.GetDisplayNode():
             slicer.util.errorDisplay("Please select a volume before loading.")
             return
+        
+
 
         usVolume = self.ui.referenceVolume.currentNode()
     
@@ -2399,6 +2401,19 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.thresholdSlider.setValues(minScalar, maxScalar)
             self.ui.thresholdMinSpinBox.setValue(defaultMinValue)  
             self.ui.thresholdMaxSpinBox.setValue(maxScalar)
+
+
+
+        if hasattr(self, "lastLoadedVolumeID") and hasattr(self, "lastLoadedFlag"):
+            if self.lastLoadedVolumeID == selectedVolume.GetID() and self.lastLoadedFlag == flag:
+                print("Volume already fully loaded — skipping display setup")
+                return
+
+        # Store currently loaded volume ID and flag
+        self.lastLoadedVolumeID = selectedVolume.GetID()
+        self.lastLoadedFlag = flag
+
+
 
         displayNode = selectedVolume.GetDisplayNode()
         if displayNode:
