@@ -2298,24 +2298,27 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         if self.lastLoadedFlag is None or self.lastLoadedFlag != flag:
             print(f"Flag changed from {self.lastLoadedFlag} to {flag} - auto-setting color map")
-            self.windowLevelFlagUpdate(flag, internalDisplayNode) #Updtae the colour and level if the flag has changed
+            self.windowLevelFlagUpdate(flag, selectedVolume) #Updtae the colour and level if the flag has changed
 
             if flag == 0:
                 colorNode = slicer.util.getNode(self.defaultColorNodeID)
                 self.ui.colorMapSelector.setEnabled(True)
                 self.ui.windowLevelSlider.setEnabled(True)
                 #self.windowLevelFlagUpdate(flag, internalDisplayNode) #Updtae the colour and level if the flag has changed
+                self.ui.windowSpinBox.setEnabled(True)
+                self.ui.levelSpinBox.setEnabled(True)
+                self.ui.resetWindowLevelButton.setEnabled(True)
 
-            
             else:
                 colorNode = slicer.util.getNode("JacobianMap")
                 colorNode.SetNoName("")  # Empty string, or
                 self.ui.colorMapSelector.setEnabled(False)               
 
                 self.ui.windowLevelSlider.setEnabled(False)
+                self.ui.windowSpinBox.setEnabled(False)
+                self.ui.levelSpinBox.setEnabled(False)
+                self.ui.resetWindowLevelButton.setEnabled(False)
 
-                
-       
                 
             
             self.lastLoadedFlag = flag  # Update the last flag
@@ -2325,7 +2328,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             colorNode = self.ui.colorMapSelector.currentNode()
             colorNode.SetNoName("")  # Empty string, or
             #call windowLevelFlagUpdate even when the flag hasn't changed but the user changed the color map
-            self.windowLevelFlagUpdate(flag, internalDisplayNode)
+            self.windowLevelFlagUpdate(flag, selectedVolume)
 
     
         if colorNode:
@@ -2451,7 +2454,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-    def windowLevelFlagUpdate(self, flag, displayNode):
+    def windowLevelFlagUpdate(self, flag, volumeNode):
+
+        displayNode = volumeNode.GetDisplayNode()
         if flag == 0: #Displacement magnitude
             window = self.defaultWindow_DisplacementMag
             level = self.defaultLevel_DisplacementMag
@@ -2463,6 +2468,32 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             level = self.defaultLevel_Jacobian
 
             print("window (Jacobian): ", window, "level (Jacobian): ", level)
+
+        minValue = level - window / 2.0
+        maxValue = level + window / 2.0
+
+        imageData = volumeNode.GetImageData()
+        if not imageData:
+            return
+            
+        scalarRange = imageData.GetScalarRange()
+        dataMin = scalarRange[0]
+        dataMax = scalarRange[1]
+        
+        # Set slider range based on data range (not threshold range)
+        padding = (dataMax - dataMin) * 0.1
+        self.ui.windowLevelSlider.minimum = dataMin - padding
+        self.ui.windowLevelSlider.maximum = dataMax + padding
+        
+        # Set slider values to the threshold/visualization range
+        self.ui.windowLevelSlider.minimumValue = minValue
+        self.ui.windowLevelSlider.maximumValue = maxValue
+        
+        # Set spin box ranges
+        self.ui.windowSpinBox.minimum = 0
+        self.ui.windowSpinBox.maximum = (dataMax - dataMin) * 2
+        self.ui.levelSpinBox.minimum = dataMin - padding
+        self.ui.levelSpinBox.maximum = dataMax + padding
 
         self.updateVolumeWindowLevel(window=window, level=level)
         # disabledModify = displayNode.StartModify()
@@ -2536,12 +2567,13 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.defaultWindow_Jacobian = window_jacobian
         self.defaultLevel_Jacobian = level_jacobian
     
-    
+
         disabledModify = displayNode.StartModify()
         displayNode.SetAutoWindowLevel(0)
         displayNode.SetWindowLevel(window, level)
         displayNode.EndModify(disabledModify)
         
+
         # Calculate min and max from window and level
         minValue = level - window / 2.0
         maxValue = level + window / 2.0
@@ -2560,6 +2592,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.windowSpinBox.maximum = (dataMax - dataMin) * 2
         self.ui.levelSpinBox.minimum = dataMin - padding
         self.ui.levelSpinBox.maximum = dataMax + padding
+        
         # STORE DEFAULT VALUES
         self.defaultWindow_DisplacementMag = window
         self.defaultLevel_DisplacementMag = level
@@ -2749,6 +2782,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         displayNode.SetAutoWindowLevel(0)
         displayNode.SetWindowLevel(window, level)
         displayNode.EndModify(disabledModify)
+
+        
 
     def getBrainShiftFlag(self, volumeNode):
         """
