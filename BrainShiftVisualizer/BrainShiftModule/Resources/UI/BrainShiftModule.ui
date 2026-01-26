@@ -156,6 +156,23 @@
      </property>
     </widget>
    </item>
+   <item row="28" column="1">
+    <widget class="QPushButton" name="loadDisplacementButton">
+     <property name="toolTip">
+      <string extracomment="Tester"/>
+     </property>
+     <property name="text">
+      <string>Load Displacement Magnitude</string>
+     </property>
+    </widget>
+   </item>
+   <item row="29" column="1">
+    <widget class="QPushButton" name="loadJacobianButton">
+     <property name="text">
+      <string>Load Jacobian</string>
+     </property>
+    </widget>
+   </item>
    <item row="31" column="0">
     <widget class="Line" name="line_2">
      <property name="lineWidth">
@@ -315,30 +332,39 @@
      </property>
     </spacer>
    </item>
-   <item row="56" column="1">
-    <widget class="QDoubleSpinBox" name="selectedLandmarks"/>
-   </item>
-   <item row="57" column="1">
-    <widget class="QDoubleSpinBox" name="landmarkEuclidianDistance"/>
+   <item row="58" column="0">
+    <widget class="QPushButton" name="resetWindowLevelButton">
+     <property name="text">
+      <string>Reset Colour Window / Level to Default</string>
+     </property>
+    </widget>
    </item>
    <item row="58" column="1">
-    <widget class="ctkSliderWidget" name="colourLevelSlider"/>
+    <widget class="QDoubleSpinBox" name="selectedLandmarks"/>
    </item>
    <item row="59" column="1">
-    <widget class="ctkSliderWidget" name="colourWindowSlider"/>
+    <widget class="QDoubleSpinBox" name="landmarkEuclidianDistance"/>
    </item>
-   <item row="70" column="1">
-    <spacer name="verticalSpacer_10">
+   <item row="60" column="1">
+    <widget class="ctkDoubleRangeSlider" name="windowLevelSlider">
      <property name="orientation">
-      <enum>Qt::Vertical</enum>
+      <enum>Qt::Horizontal</enum>
      </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
+    </widget>
+   </item>
+   <item row="61" column="1">
+    <widget class="QSlider" name="markupSizeSlider">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
      </property>
-    </spacer>
+    </widget>
+   </item>
+   <item row="71" column="0">
+    <widget class="QSlider" name="markupTextSizeSlider">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+    </widget>
    </item>
    <item row="71" column="1">
     <spacer name="verticalSpacer_10">
@@ -353,43 +379,28 @@
      </property>
     </spacer>
    </item>
-   <item row="70" column="0">
-    <widget class="QSlider" name="markupTextSizeSlider">
+   <item row="72" column="1">
+    <spacer name="verticalSpacer_10">
      <property name="orientation">
-      <enum>Qt::Horizontal</enum>
+      <enum>Qt::Vertical</enum>
      </property>
-    </widget>
-   </item>
-   <item row="60" column="1">
-    <widget class="QSlider" name="markupSizeSlider">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
      </property>
-    </widget>
-   </item>
-   <item row="28" column="1">
-    <widget class="QPushButton" name="loadDisplacementButton">
-     <property name="toolTip">
-      <string extracomment="Tester"/>
-     </property>
-     <property name="text">
-      <string>Load Displacement Magnitude</string>
-     </property>
-    </widget>
-   </item>
-   <item row="29" column="1">
-    <widget class="QPushButton" name="loadJacobianButton">
-     <property name="text">
-      <string>Load Jacobian</string>
-     </property>
-    </widget>
+    </spacer>
    </item>
    <item row="56" column="0">
-    <widget class="QPushButton" name="resetWindowLevelButton">
-     <property name="text">
-      <string>Reset Colour Window / Level to Default</string>
+    <widget class="QDoubleSpinBox" name="levelSpinBox">
+     <property name="singleStep">
+      <double>0.100000000000000</double>
      </property>
     </widget>
+   </item>
+   <item row="57" column="0">
+    <widget class="QDoubleSpinBox" name="windowSpinBox"/>
    </item>
   </layout>
  </widget>
@@ -408,11 +419,6 @@
    <class>ctkDoubleRangeSlider</class>
    <extends>QWidget</extends>
    <header>ctkDoubleRangeSlider.h</header>
-  </customwidget>
-  <customwidget>
-   <class>ctkSliderWidget</class>
-   <extends>QWidget</extends>
-   <header>ctkSliderWidget.h</header>
   </customwidget>
   <customwidget>
    <class>qMRMLCheckableNodeComboBox</class>
