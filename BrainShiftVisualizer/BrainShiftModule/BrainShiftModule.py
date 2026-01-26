@@ -2289,14 +2289,14 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             QPushButton {
                 background-color: #434343;
                 border: 2px solid #707070;
+                color: #FFFFFF;
             }
         """
         
         # Style for inactive button
         inactiveStyle = """
             QPushButton {
-                background-color: #707070;
-                border: 2px solid #808080;
+                color: #A0A0A0;
             }
         """
         
@@ -2306,6 +2306,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         else:
             self.ui.loadDisplacementButton.setStyleSheet(inactiveStyle)
             self.ui.loadJacobianButton.setStyleSheet(activeStyle)
+
 
     def onLoadDisplacementVolume(self, flag:int) -> None:
 
