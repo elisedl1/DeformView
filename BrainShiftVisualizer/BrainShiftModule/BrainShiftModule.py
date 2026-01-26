@@ -213,6 +213,11 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             "Used to visualize voxel-wise displacement magnitude (mm)."
         )
 
+        #self.ui.loadDisplacementButton.setIcon(self.createDisplacementIcon())
+        #self.ui.loadDisplacementButton.setIconSize(qt.QSize(80, 50))
+
+
+
         # load jacobian button
         self.ui.loadJacobianButton.connect(
             "clicked(bool)", lambda: self.onLoadDisplacementVolume(flag=1)
@@ -221,7 +226,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             "Load the determinant of the Jacobian volume.\n"
             "Used to visualize voxel-wise expansion and compression (%)."
         )
-
+        #self.ui.loadJacobianButton.setIcon(self.createJacobianIcon())
+        #self.ui.loadJacobianButton.setIconSize(qt.QSize(80, 50))
       
 
         self.enableVTKErrorTracking()
@@ -277,15 +283,27 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # connect threshold slider
         self.ui.thresholdSlider.connect("valuesChanged(double,double)", self.onThresholdSliderChanged)
         
-        self.ui.colourWindowSlider.connect("valuesChanged(double,double)", self.onColourWindowSliderChanged)
+        #self.ui.windowLevelSlider.connect("valuesChanged(double,double)", self.onWindowLevelSliderChanged)
+            # Connect window/level controls
+        self.ui.windowLevelSlider.connect('valuesChanged(double,double)', self.onWindowLevelSliderChanged)
+        self.ui.windowSpinBox.connect('valueChanged(double)', self.onWindowSpinBoxChanged)
+        self.ui.levelSpinBox.connect('valueChanged(double)', self.onLevelSpinBoxChanged)
+        
+        # Flag to prevent recursive updates
+        self.updatingWindowLevel = False
 
+        # Store default window/level values
+        self.defaultWindow = None
+        self.defaultLevel = None
+        
+        # Connect reset button
+        self.ui.resetWindowLevelButton.connect('clicked(bool)', self.onResetWindowLevel)
+
+        
         # set spin box max and mins
         self.ui.thresholdMinSpinBox.connect("valueChanged(double)", self.onMinSpinBoxChanged)
         self.ui.thresholdMaxSpinBox.connect("valueChanged(double)", self.onMaxSpinBoxChanged)        
-      
-        #self.ui.minColourWindow.connect("valueChanged(double)", self.onMinColourWindowChanged)
-        #self.ui.maxColourWindow.connect("valueChanged(double)", self.onMaxColourWindowChanged)        
-      
+
 
         # button to create fcsv from tag file
         self.ConvertTagFCSVButton = qt.QPushButton("Load Tag File")
@@ -1240,7 +1258,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # === SECTION 2: PROCESSING ===
 
         for b in [self.ui.loadDisplacementButton, self.ui.loadJacobianButton]:
-            b.setMinimumSize(180, 38)
+            b.setMinimumSize(180, 60)
             font = b.font
             font.setPointSize(11)
             font.setBold(True)
@@ -1271,10 +1289,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         processingLayout.addRow("Colour Map:", self.ui.colorMapSelector)
 
         # Row 1: Load buttons (TOP)
-        loadButtonsLayout = qt.QHBoxLayout()
-        loadButtonsLayout.addWidget(self.ui.loadDisplacementButton)
-        loadButtonsLayout.addWidget(self.ui.loadJacobianButton)
-        loadButtonsLayout.addStretch(1)
+        # loadButtonsLayout = qt.QHBoxLayout()
+        # loadButtonsLayout.addWidget(self.ui.loadDisplacementButton)
+        # loadButtonsLayout.addWidget(self.ui.loadJacobianButton)
+        # loadButtonsLayout.addStretch(1)
 
         # center load buttons
         loadButtonsLayout = qt.QHBoxLayout()
@@ -1392,44 +1410,40 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
+
+
         windowLayout = qt.QVBoxLayout()
         windowLayout.setSpacing(5)
 
         #vizLayout.addRow("Colour Window:", self.ui.colourWindowSlider)
         colourWindowSliderLayout = qt.QHBoxLayout()
-        colourWindowSliderLayout.addWidget(self.ui.colourWindowSlider)
+        colourWindowSliderLayout.addWidget(self.ui.windowLevelSlider)
 
         windowLayout.addLayout(colourWindowSliderLayout)
 
-        # colourWindowLayout = qt.QHBoxLayout()
-        # colourWindowLayout.addWidget(qt.QLabel("Min:"))
-        # #colourWindowLayout.addWidget(self.ui.minColourWindow)
-        # colourWindowLayout.addSpacing(10)
-        # colourWindowLayout.addWidget(qt.QLabel("Max:"))
-        # colourWindowLayout.addWidget(self.ui.maxColourWindow)
-        # windowLayout.addLayout(colourWindowLayout)
-        
-        vizLayout.addRow("Colour Window (contrast):", windowLayout)
+
+        WLSpinBoxLayout = qt.QHBoxLayout()
+        WLSpinBoxLayout.addWidget(qt.QLabel("W:"))
+        WLSpinBoxLayout.addWidget(self.ui.windowSpinBox)
+        WLSpinBoxLayout.addSpacing(10)
+        WLSpinBoxLayout.addWidget(qt.QLabel("L:"))
+        WLSpinBoxLayout.addWidget(self.ui.levelSpinBox)
+        windowLayout.addLayout(WLSpinBoxLayout)
+      
+        vizLayout.addRow("Colour Window/Level", windowLayout)
 
 
         # COLOUR LEVEL
-        levelLayout = qt.QVBoxLayout()
-        levelLayout.setSpacing(5)
-        #vizLayout.addRow("Colour Window:", self.ui.colourWindowSlider)
-        colourLevelSliderLayout = qt.QHBoxLayout()
-        colourLevelSliderLayout.addWidget(self.ui.colourLevelSlider)
-        levelLayout.addLayout(colourLevelSliderLayout)
+        # levelLayout = qt.QVBoxLayout()
+        # levelLayout.setSpacing(5)
+        # #vizLayout.addRow("Colour Window:", self.ui.colourWindowSlider)
+        # colourLevelSliderLayout = qt.QHBoxLayout()
+        # colourLevelSliderLayout.addWidget(self.ui.colourLevelSlider)
+        # levelLayout.addLayout(colourLevelSliderLayout)
 
 
-        # colourLevelLayout = qt.QHBoxLayout()
-        # colourLevelLayout.addWidget(qt.QLabel("Min:"))
-        # colourLevelLayout.addWidget(self.ui.minColourLevel)
-        # colourLevelLayout.addSpacing(10)
-        # colourLevelLayout.addWidget(qt.QLabel("Max:"))
-        # colourLevelLayout.addWidget(self.ui.maxColourLevel)
-        # levelLayout.addLayout(colourLevelLayout)
-        
-        vizLayout.addRow("Colour Level (brightness):", levelLayout)
+
+        #vizLayout.addRow("Colour Level (brightness):", levelLayout)
         
         # colourResetLayout = qt.QHBoxLayout()
         # colourResetLayout.addWidget()
@@ -2170,9 +2184,128 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
+    def createDisplacementIcon(self):
+        '''
+        Creates icon for displacement magnitude button
+        Rainbow gradient with "mm" label and arrow
+        '''
+        pixmap = qt.QPixmap(120, 80)
+        pixmap.fill(qt.QColor(240, 240, 240))
+        
+        painter = qt.QPainter(pixmap)
+        painter.setRenderHint(qt.QPainter.Antialiasing)
+        
+        # Draw rainbow gradient bar (hot to cold: red->yellow->green->cyan->blue)
+        gradient = qt.QLinearGradient(10, 30, 110, 30)
+        gradient.setColorAt(0.0, qt.QColor(255, 0, 0))      # red
+        gradient.setColorAt(0.25, qt.QColor(255, 255, 0))   # yellow
+        gradient.setColorAt(0.5, qt.QColor(0, 255, 0))      # green
+        gradient.setColorAt(0.75, qt.QColor(0, 255, 255))   # cyan
+        gradient.setColorAt(1.0, qt.QColor(0, 0, 255))      # blue
+        
+        # Use QBrush with the gradient
+        brush = qt.QBrush(gradient)
+        painter.fillRect(10, 20, 100, 25, brush)
+        painter.setPen(qt.QPen(qt.QColor(0, 0, 0), 2))
+        painter.drawRect(10, 20, 100, 25)
+        
+        # Draw displacement arrow
+        painter.setPen(qt.QPen(qt.QColor(0, 0, 0), 3))
+        painter.drawLine(20, 55, 80, 55)  # arrow shaft
+        # arrow head
+        painter.drawLine(80, 55, 70, 50)
+        painter.drawLine(80, 55, 70, 60)
+        
+        # Add "mm" text
+        font = qt.QFont()
+        font.setPointSize(12)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(85, 65, "mm")
+        
+        painter.end()
+        return qt.QIcon(pixmap)
 
 
+    def createJacobianIcon(self):
+        '''
+        Creates icon for Jacobian button
+        Blue/red split with compression/expansion arrows and "%"
+        '''
+        pixmap = qt.QPixmap(120, 80)
+        pixmap.fill(qt.QColor(240, 240, 240))
+        
+        painter = qt.QPainter(pixmap)
+        painter.setRenderHint(qt.QPainter.Antialiasing)
+        
+        # Left half: blue (compression)
+        painter.fillRect(10, 20, 50, 35, qt.QColor(0, 100, 255))
+        
+        # Right half: red (expansion)
+        painter.fillRect(60, 20, 50, 35, qt.QColor(255, 50, 50))
+        
+        # Border around both
+        painter.setPen(qt.QPen(qt.QColor(0, 0, 0), 2))
+        painter.drawRect(10, 20, 100, 35)
+        painter.drawLine(60, 20, 60, 55)  # middle divider
+        
+        # Compression arrows (pointing inward) - left side
+        painter.setPen(qt.QPen(qt.QColor(255, 255, 255), 3))
+        painter.drawLine(15, 37, 25, 37)
+        painter.drawLine(25, 37, 20, 32)
+        painter.drawLine(25, 37, 20, 42)
+        
+        painter.drawLine(50, 37, 40, 37)
+        painter.drawLine(40, 37, 45, 32)
+        painter.drawLine(40, 37, 45, 42)
+        
+        # Expansion arrows (pointing outward) - right side
+        painter.drawLine(65, 37, 75, 37)
+        painter.drawLine(65, 37, 70, 32)
+        painter.drawLine(65, 37, 70, 42)
+        
+        painter.drawLine(105, 37, 95, 37)
+        painter.drawLine(105, 37, 100, 32)
+        painter.drawLine(105, 37, 100, 42)
+        
+        # Add "%" text
+        font = qt.QFont()
+        font.setPointSize(14)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(qt.QColor(0, 0, 0))
+        painter.drawText(50, 72, "%")
+        
+        painter.end()
+        return qt.QIcon(pixmap)
 
+
+    def updateButtonStyles(self):
+        '''
+        Updates button appearance based on which visualization is active
+        '''
+        # Style for active (pressed) button
+        activeStyle = """
+            QPushButton {
+                background-color: #434343;
+                border: 2px solid #707070;
+            }
+        """
+        
+        # Style for inactive button
+        inactiveStyle = """
+            QPushButton {
+                background-color: #707070;
+                border: 2px solid #808080;
+            }
+        """
+        
+        if self.currentVisualizationFlag == 0:
+            self.ui.loadDisplacementButton.setStyleSheet(activeStyle)
+            self.ui.loadJacobianButton.setStyleSheet(inactiveStyle)
+        else:
+            self.ui.loadDisplacementButton.setStyleSheet(inactiveStyle)
+            self.ui.loadJacobianButton.setStyleSheet(activeStyle)
 
     def onLoadDisplacementVolume(self, flag:int) -> None:
 
@@ -2184,7 +2317,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.currentVisualizationFlag = flag
 
-
+        self.updateButtonStyles()
 
         # --- AUTO-SELECT THE VOLUME FROM SCENE ---
         selectedVolume = None
@@ -2414,144 +2547,228 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.lastLoadedFlag = flag
 
 
+        self.initializeWindowLevelControls(selectedVolume)
 
-        displayNode = selectedVolume.GetDisplayNode()
-        if displayNode:
-            # --- Colour Window (contrast)---
 
-            # Turn off auto window/level to get current manual settings
-            displayNode.AutoWindowLevelOff()
-            
-            window = displayNode.GetWindow()
-            
-            #minWindow = displayNode.GetWindowLevelMin()
-            #maxWindow = displayNode.GetWindowLevelMax()
-            
-            minWindow = 0.0001  # Prevent zero window
-            maxWindow = maxScalar - minScalar  # Maximum width is full range
-    
-            #IJZF changed to use full range in the colour legend
-            displayNode.SetWindowLevelMinMax(minScalar, maxScalar)  # Your actual range
 
-            # print("Current Window:", window)
-            #print("Window Range:", minWindow, "to", maxWindow)
+    def initializeWindowLevelControls(self, volumeNode):
+        '''
+        Initialize window/level controls based on the volume's display node
+        and appropriate threshold/visualization range
+        '''
+        print("CALLED INITIALIZE WINDOW LEVEL CONTROLS")
+        if not volumeNode:
+            return
             
-            # Set up the slider
-            self.ui.colourWindowSlider.singleStep = step
-            self.ui.colourWindowSlider.minimum = minWindow
-            self.ui.colourWindowSlider.maximum = maxWindow
-            self.ui.colourWindowSlider.value = min(window, maxWindow)#window  # Set current window as default
-            self.ui.colourWindowSlider.setValue(min(window, maxWindow))
-
-            # Connect slider to update function
-            self.ui.colourWindowSlider.valueChanged.connect(self.onWindowChanged)
+        displayNode = volumeNode.GetDisplayNode()
+        if not displayNode:
+            return
+        
+        # Get the scalar range of the volume
+        imageData = volumeNode.GetImageData()
+        if not imageData:
+            return
             
-            # --- Colour Level (brightness)---
-            level = displayNode.GetLevel()
-
-            #minLevel = displayNode.GetWindowLevelMin()
-            #maxLevel = displayNode.GetWindowLevelMax()
-            # Level controls the "center" of the visible range
-            # Constrain it to stay within your actual data range
-            minLevel = minScalar
-            maxLevel = maxScalar
+        scalarRange = imageData.GetScalarRange()
+        dataMin = scalarRange[0]
+        dataMax = scalarRange[1]
+        
+        # Get the threshold range (if thresholding is enabled)
+        if displayNode.GetApplyThreshold():
+            thresholdMin = displayNode.GetLowerThreshold()
+            thresholdMax = displayNode.GetUpperThreshold()
+            
+            # Use threshold range for window/level
+            window = thresholdMax - thresholdMin
+            level = (thresholdMax + thresholdMin) / 2.0
+        else:
+            # Check if there's a color node with a defined range
+            colorNode = displayNode.GetColorNode()
+            if colorNode:
+                # Get the color transfer function range
+                colorRange = [0, 0]
+                colorNode.GetRange(colorRange)
                 
-            # print("Current Level:", level)
-            #print("Level Range:", minLevel, "to", maxLevel)
-
-            # Set up the slider
-            
-            self.ui.colourLevelSlider.singleStep = step
-            self.ui.colourLevelSlider.minimum = minLevel
-            self.ui.colourLevelSlider.maximum = maxLevel
-            self.ui.colourLevelSlider.value = (minScalar + maxScalar) / 3.0  # Center by default#level  # Set current level as default
-            self.ui.colourLevelSlider.setValue((minScalar + maxScalar) / 3.0)
-
-            # Connect slider to update function
-            self.ui.colourLevelSlider.valueChanged.connect(self.onLevelChanged)
-
-
-            self.defaultWindow = maxScalar - minScalar
-            self.defaultLevel = (minScalar + maxScalar) / 3.0 #3.0 = 2.6, 2.0 = 2.97, 
-            
-            self.ui.resetWindowLevelButton.clicked.connect(self.onResetWindowLevel)
-            #print("Button exists:", self.ui.resetWindowLevelButton)
-            #elf.ui.resetWindowLevelButton.connect("clicked()", self.onResetWindowLevel)
-
+                if colorRange[0] != colorRange[1]:
+                    # Use color node range
+                    window = colorRange[1] - colorRange[0]
+                    level = (colorRange[1] + colorRange[0]) / 2.0
+                else:
+                    # Fallback to full data range
+                    window = dataMax - dataMin
+                    level = (dataMax + dataMin) / 2.0
+            else:
+                # No color node, use full data range
+                window = dataMax - dataMin
+                level = (dataMax + dataMin) / 2.0
+        
+        # STORE DEFAULT VALUES
+        self.defaultWindow = window
+        self.defaultLevel = level
+        
+        # Set the display node
+        disabledModify = displayNode.StartModify()
+        displayNode.SetAutoWindowLevel(0)
+        displayNode.SetWindowLevel(window, level)
+        displayNode.EndModify(disabledModify)
+        
+        # Calculate min and max from window and level
+        minValue = level - window / 2.0
+        maxValue = level + window / 2.0
+        
+        # Set slider range based on data range (not threshold range)
+        padding = (dataMax - dataMin) * 0.1
+        self.ui.windowLevelSlider.minimum = dataMin - padding
+        self.ui.windowLevelSlider.maximum = dataMax + padding
+        
+        # Set slider values to the threshold/visualization range
+        self.ui.windowLevelSlider.minimumValue = minValue
+        self.ui.windowLevelSlider.maximumValue = maxValue
+        
+        # Set spin box ranges
+        self.ui.windowSpinBox.minimum = 0
+        self.ui.windowSpinBox.maximum = (dataMax - dataMin) * 2
+        self.ui.levelSpinBox.minimum = dataMin - padding
+        self.ui.levelSpinBox.maximum = dataMax + padding
+        
+        # Set spin box values
+        self.ui.windowSpinBox.value = window
+        self.ui.levelSpinBox.value = level
+        
+        print(f"Data range: [{dataMin}, {dataMax}]")
+        print(f"Default Window/Level: window={window}, level={level}")
+        print(f"Threshold range: [{minValue}, {maxValue}]")
 
 
     def onResetWindowLevel(self):
+        '''
+        Reset window/level to default values
+        '''
+        if self.defaultWindow is None or self.defaultLevel is None:
+            # No defaults stored, try to reinitialize
+            selectedVolume = self.ui.loadedTransformVolume.currentNode()
+            if selectedVolume:
+                self.initializeWindowLevelControls(selectedVolume)
+            return
+        
+        # Use stored defaults
+        window = self.defaultWindow
+        level = self.defaultLevel
+        
+        # Block signals to prevent multiple updates
+        self.updatingWindowLevel = True
+        
+        # Update all controls
+        self.ui.windowSpinBox.value = window
+        self.ui.levelSpinBox.value = level
+        
+        minVal = level - window / 2.0
+        maxVal = level + window / 2.0
+        self.ui.windowLevelSlider.minimumValue = minVal
+        self.ui.windowLevelSlider.maximumValue = maxVal
+        
+        # Update display node
+        self.updateVolumeWindowLevel(window, level)
+        
+        self.updatingWindowLevel = False
+        
+        print(f"Reset to default: window={window}, level={level}")
 
-        print("Resetting window/level to defaults ")
+    def onWindowLevelSliderChanged(self, minVal, maxVal):
+        '''
+        Called when the double slider values change
+        Updates window/level based on slider min/max
+        '''
+        if self.updatingWindowLevel:
+            return
+        
+        self.updatingWindowLevel = True
+        
+        # Calculate window and level from slider min/max
+        window = maxVal - minVal
+        level = (maxVal + minVal) / 2.0
+        
+        # Update spin boxes
+        self.ui.windowSpinBox.value = window
+        self.ui.levelSpinBox.value = level
+        
+        # Update display node
+        self.updateVolumeWindowLevel(window, level)
+        
+        self.updatingWindowLevel = False
+
+        
+    def onWindowSpinBoxChanged(self, window):
+        '''
+        Called when window spinbox changes
+        Updates level spinbox and slider
+        '''
+        if self.updatingWindowLevel:
+            return
+        
+        self.updatingWindowLevel = True
+        
+        # Get current level
+        level = self.ui.levelSpinBox.value
+        
+        # Calculate min/max for slider
+        minVal = level - window / 2.0
+        maxVal = level + window / 2.0
+        
+        # Update slider
+        self.ui.windowLevelSlider.minimumValue = minVal
+        self.ui.windowLevelSlider.maximumValue = maxVal
+        
+        # Update display node
+        self.updateVolumeWindowLevel(window, level)
+        
+        self.updatingWindowLevel = False
+
+
+    def onLevelSpinBoxChanged(self, level):
+        '''
+        Called when level spinbox changes
+        Updates window spinbox and slider
+        '''
+        if self.updatingWindowLevel:
+            return
+        
+        self.updatingWindowLevel = True
+        
+        # Get current window
+        window = self.ui.windowSpinBox.value
+        
+        # Calculate min/max for slider
+        minVal = level - window / 2.0
+        maxVal = level + window / 2.0
+        
+        # Update slider
+        self.ui.windowLevelSlider.minimumValue = minVal
+        self.ui.windowLevelSlider.maximumValue = maxVal
+        
+        # Update display node
+        self.updateVolumeWindowLevel(window, level)
+        
+        self.updatingWindowLevel = False
+
+
+    def updateVolumeWindowLevel(self, window, level):
+        '''
+        Apply window/level to the currently loaded volume's display node
+        '''
         selectedVolume = self.ui.loadedTransformVolume.currentNode()
-        if selectedVolume:
-            displayNode = selectedVolume.GetDisplayNode()
-            if displayNode:
-                # Reset to full data range
-                displayNode.SetWindowLevelMinMax(self.scalarRange[0], self.scalarRange[1])
-                
-                # Update slider values to match
-                self.ui.colourWindowSlider.value = self.defaultWindow
-                self.ui.colourLevelSlider.value = self.defaultLevel
-                
-                print(f"Reset window/level to defaults: Window={self.defaultWindow}, Level={self.defaultLevel}")
-                
-
-    def onWindowChanged(self, value):
-        selectedVolume = self.ui.loadedTransformVolume.currentNode()
-        if selectedVolume:
-            displayNode = selectedVolume.GetDisplayNode()
-            if displayNode:
-                level = displayNode.GetLevel()
-                window = value
-                
-                # Calculate the min and max based on window and level
-                calculated_min = level - window / 3.0
-                calculated_max = level + window / 3.0
-                
-                # Clamp to your actual data range
-                clamped_min = max(calculated_min, self.scalarRange[0])
-                clamped_max = min(calculated_max, self.scalarRange[1])
-                
-                # Set the clamped values
-                displayNode.SetWindowLevelMinMax(clamped_min, clamped_max)
-
-    def onLevelChanged(self, value):
-        selectedVolume = self.ui.loadedTransformVolume.currentNode()
-        if selectedVolume:
-            displayNode = selectedVolume.GetDisplayNode()
-            if displayNode:
-                window = displayNode.GetWindow()
-                level = value
-                
-                # Calculate the min and max based on window and level
-                calculated_min = level - window / 2.0
-                calculated_max = level + window / 2.0
-                
-                # Clamp to your actual data range
-                clamped_min = max(calculated_min, self.scalarRange[0])
-                clamped_max = min(calculated_max, self.scalarRange[1])
-                
-                # Set the clamped values
-                displayNode.SetWindowLevelMinMax(clamped_min, clamped_max)
-
-    # def onWindowChanged(self, value):
-    #     """Update the display node when slider changes"""
-    #     volumeNode = self.ui.loadedTransformVolume.currentNode()
-
-    #     displayNode = volumeNode.GetDisplayNode()
-    #     if displayNode:
-    #         currentLevel = displayNode.GetLevel()
-    #         displayNode.SetWindowLevel(value, currentLevel)
-
-
-    # def onLevelChanged(self, value):
-    #     """Update the display node when level slider changes"""
-    #     volumeNode = self.ui.loadedTransformVolume.currentNode()
-    #     displayNode = volumeNode.GetDisplayNode()
-    #     if displayNode:
-    #         currentWindow = displayNode.GetWindow()
-    #         displayNode.SetWindowLevel(currentWindow, value)
+        if not selectedVolume:
+            return
+            
+        displayNode = selectedVolume.GetDisplayNode()
+        if not displayNode:
+            return
+        
+        # Update the display node
+        disabledModify = displayNode.StartModify()
+        displayNode.SetAutoWindowLevel(0)
+        displayNode.SetWindowLevel(window, level)
+        displayNode.EndModify(disabledModify)
 
     def getBrainShiftFlag(self, volumeNode):
         """
@@ -3074,17 +3291,11 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         currentMax = self.ui.thresholdMaxSpinBox.value
         self.ui.thresholdSlider.setValues(value, currentMax)
 
-    def onMinColourWindowChanged(self, value):
-        currentMax = self.ui.colourWindowMax.value
-        self.ui.colourWindowSlider.setValues(value, currentMax)
 
     def onMaxSpinBoxChanged(self, value):
         currentMin = self.ui.thresholdMinSpinBox.value
         self.ui.thresholdSlider.setValues(currentMin, value)
 
-    def onMaxColourWindowChanged(self, value):
-        currentMin = self.ui.colourWindowMax.value
-        self.ui.colourWindowSlider.setValues(currentMin, value)
 
 # BrainShiftModuleLogic
 class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
