@@ -594,19 +594,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             #("Isodose_ColorTable_Relative", "Isodose_ColorTable_Relative"),
         ]
 
-        # CRITICAL FIX: Only create if doesn't exist
-        #for name_str, node_ID in nodes_to_add:
-            # self.cleanupCorruptedColormaps(name_str, type_str)
-            #existing = slicer.mrmlScene.GetFirstNodeByName(name_str)
-            #existing = slicer.mrmlScene.GetNodeByID(f'{node_ID}')
-
-                #existing = None
-
-            #if not existing:
-                #Only create if it doesn't exist
-
-            #print(f"Creating colormap: {name_str}")
-        #    new_node = self.create_colour_node(name_str, node_ID)
     # Add display order attribute
         for index, (name_str, node_ID) in enumerate(nodes_to_add):
             node = self.create_colour_node(name_str, node_ID)
@@ -628,13 +615,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
           # Set default to Rainbow
         HotToColdRainbowNode = slicer.mrmlScene.GetNodeByID(f'vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
         self.defaultColorNodeID = 'vtkMRMLColorTableNodeFileColdToHotRainbow.txt'
-        print(self.defaultColorNodeID)
+        # print(self.defaultColorNodeID)
         #ColdToHotRainbowNode = slicer.mrmlScene.GetFirstNodeByName("HotToColdRainbow")
         if HotToColdRainbowNode:
             self.ui.colorMapSelector.setCurrentNode(HotToColdRainbowNode)
-            #self.ui.colorMapSelector.Attribute("DefaultColourMap", "vtkMRMLColorTableNodeFileHotToColdRainbow.txt")
-            #self.ui.colorMapSelector.addAttribute("vtkMRMLColorTableNode", "DefaultColourMap", "vtkMRMLColorTableNodeFileHotToColdRainbow.txt")
-
+            
+        
 
     def diagnose_colormap_application(self, volumeNode):
         """
@@ -936,105 +922,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         return colorNode
 
-   
-   
-    # def create_colour_node(self, name_str, type_str="ColdToHot", use_table=False):
-    #     """
-    #     Unified function to create color nodes.
-        
-    #     Args:
-    #         name_str: Name for the color node
-    #         type_str: Type of colormap
-    #         use_table: If True, creates ColorTableNode instead of ProceduralColorNode
-    #     """
-    #     # Remove existing node
-    #     #node = slicer.mrmlScene.GetFirstNodeByName(name_str)
-    #     existing_node = slicer.mrmlScene.GetFirstNodeByName(name_str)
-    #     if existing_node:
-    #         # CRITICAL FIX: Set the attribute even on existing nodes
-    #         existing_node.SetAttribute("MyColourMaps", "1")
-    #         print(f"Color node {name_str} already exists, tagged for selector")
-    #         return existing_node
-    #     # if node:
-    #     #     slicer.mrmlScene.RemoveNode(node)
-        
-    #     # Try built-in vtkMRMLColorTableNode types first
-    #     try:
-    #         node = slicer.vtkMRMLColorTableNode()
-    #         typeFunction = getattr(node, f"SetTypeTo{type_str}")
-    #         typeFunction()
-    #         node.SetName(name_str)
-    #         slicer.mrmlScene.AddNode(node)
-    #         node.SetAttribute("MyColourMaps", "1")
-    #         print(f"Created built-in color table: {name_str}")
-    #         return node
-    #     except AttributeError:
-    #         pass  # Type doesn't exist, try matplotlib
-        
-    #     # Matplotlib colormaps
-    #     matplotlib_maps = {
-    #         'Viridis': 'viridis',
-    #         'Plasma': 'plasma', 
-    #         'Inferno': 'inferno',
-    #         'Magma': 'magma',
-    #         'Cividis': 'cividis',
-    #         'Turbo': 'turbo',
-    #         'RdBu': 'RdBu',
-    #         'Spectral': 'Spectral',
-    #     }
-        
-    #     if type_str in matplotlib_maps:
-    #         print(f"Creating {type_str} from matplotlib")
-    #         if use_table:
-    #             return self.create_colour_table_from_matplotlib(name_str, matplotlib_maps[type_str])
-    #         else:
-    #             return self.create_colour_node_from_matplotlib(name_str, matplotlib_maps[type_str])
-        
-    #     # Access the ColdToHotRainbow color map
-    # #     node = slicer.util.getNode('ColdToHotRainbow')
 
-
-    #     node = slicer.mrmlScene.GetNodeByID('vtkMRMLColorTableNodeFileHotToColdRainbow.txt')
-
-    # #    #node = slicer.mrmlScene.GetNodeByID('FilePlasma.txt')
-    #     node.SetName("HotToColdRainbow")
-    #     slicer.mrmlScene.AddNode(node)
-    #     node.SetAttribute("MyColourMaps", "1")
-    #     #print(f"Created built-in color table: Attmept")
-
-
-    #     # Or use the display name
-    #     #node = slicer.util.getNode('ColdToHotRainbow')
-    #     #node = slicer.util.getNode('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
-    #     # colorLogic = slicer.modules.colors.logic()
-    #     # colorNode = colorLogic.GetColorTableNodeID('ColdToHotRainbow')
-    #     # if colorNode:
-    #     #     node = slicer.mrmlScene.GetNodeByID(colorNode)
-    #     # Fallback: create empty procedural node
-    #     #print(f"Creating empty procedural node for {name_str}")
-    #     # node = slicer.vtkMRMLProceduralColorNode()
-    #     # print(dir(node))
-    #     # node.SetNumberOfTableValues(256)
-    #     # node.GetColorTransferFunction()
-    #     # node.SetName(name_str)
-    #     # slicer.mrmlScene.AddNode(node)
-    #     # node.SetAttribute("MyColourMaps", "1")
-    #     # if node:
-    #     #     print(f"Node type: {node.GetClassName()}")
-    #     #     print(f"Has GetLookupTable: {hasattr(node, 'GetLookupTable')}")
-    #     #     if hasattr(node, 'GetLookupTable'):
-    #     #         lut = node.GetLookupTable()
-    #     #         if lut:
-    #     #             print(f"LUT has {lut.GetNumberOfTableValues()} values")
-    #     #             print(f"LUT range: {lut.GetRange()}")
-    #     #             # Show first color
-    #     #             rgba = lut.GetTableValue(0)
-    #     #             print(f"First color: {rgba}")
-    #     #         else:
-    #     #             print("LUT is None")
-    #     #     print(f"Number of colors: {node.GetNumberOfColors()}")
-        
-    #     return node
 
     
 
@@ -2334,6 +2222,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 if node.GetName() and suffix in node.GetName():
                     selectedVolume = node
                     break
+        
+
 
             # sync with UI so all other code works
             if selectedVolume:
@@ -2403,17 +2293,28 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #     # Not first time for this flag type - use current selection
         #     print(f"Already loaded this type before - using current selection")
         #     colorNode = self.ui.colorMapSelector.currentNode()
+        self.initializeWindowLevelControls(selectedVolume)
+
         if self.lastLoadedFlag is None or self.lastLoadedFlag != flag:
             print(f"Flag changed from {self.lastLoadedFlag} to {flag} - auto-setting color map")
-            
+            self.windowLevelFlagUpdate(flag, internalDisplayNode) #Updtae the colour and level if the flag has changed
+
             if flag == 0:
                 colorNode = slicer.util.getNode(self.defaultColorNodeID)
+                self.ui.colorMapSelector.setEnabled(True)
+                self.ui.windowLevelSlider.setEnabled(True)
+                #self.windowLevelFlagUpdate(flag, internalDisplayNode) #Updtae the colour and level if the flag has changed
+
+            
             else:
                 colorNode = slicer.util.getNode("JacobianMap")
                 colorNode.SetNoName("")  # Empty string, or
+                self.ui.colorMapSelector.setEnabled(False)               
 
-                # colorNode.SetColorName(64, "Contracting")
-                # colorNode.SetColorName(191, "Expanding")
+                self.ui.windowLevelSlider.setEnabled(False)
+
+                
+       
                 
             
             self.lastLoadedFlag = flag  # Update the last flag
@@ -2422,7 +2323,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             print(f"Already loaded this type before - using current selection")
             colorNode = self.ui.colorMapSelector.currentNode()
             colorNode.SetNoName("")  # Empty string, or
-
+            #call windowLevelFlagUpdate even when the flag hasn't changed but the user changed the color map
+            self.windowLevelFlagUpdate(flag, internalDisplayNode)
 
     
         if colorNode:
@@ -2430,6 +2332,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             internalDisplayNode.SetAndObserveColorNodeID(colorNode.GetID())
             internalDisplayNode.Modified()
+
           
         normalizedValue = self.ui.opacitySlider.value / 100
         internalDisplayNode.SetOpacity(normalizedValue)
@@ -2547,8 +2450,28 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.lastLoadedFlag = flag
 
 
-        self.initializeWindowLevelControls(selectedVolume)
 
+
+    def windowLevelFlagUpdate(self, flag, displayNode):
+        if flag == 0: #Displacement magnitude
+            window = self.defaultWindow_DisplacementMag
+            level = self.defaultLevel_DisplacementMag
+
+            print("window (DM): ", window, "level (DM): ", level)
+
+        elif flag == 1: #Jacobian
+            window = self.defaultLevel_Jacobian
+            level = self.defaultLevel_Jacobian
+
+            print("window (Jacobian): ", window, "level (Jacobian): ", level)
+
+        self.updateVolumeWindowLevel(window=window, level=level)
+        # disabledModify = displayNode.StartModify()
+        # displayNode.SetAutoWindowLevel(0)
+        # displayNode.SetWindowLevel(window, level)
+        # displayNode.EndModify(disabledModify)
+    
+           
 
 
     def initializeWindowLevelControls(self, volumeNode):
@@ -2602,11 +2525,19 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 window = dataMax - dataMin
                 level = (dataMax + dataMin) / 2.0
         
-        # STORE DEFAULT VALUES
-        self.defaultWindow = window
-        self.defaultLevel = level
-        
-        # Set the display node
+        # **DIVERGING COLORMAP ADJUSTMENT**
+        # Check if using a diverging colormap (e.g., "Diverging Blue/Red")
+        colorNode = displayNode.GetColorNode()
+        #if colorNode and "JacobianMap" in colorNode.GetName():
+        # For diverging colormaps, center at zero
+        level_jacobian = 1.0
+        # Window should span symmetrically around zero
+        maxAbsValue = max(abs(dataMin), abs(dataMax))
+        window_jacobian = 1.0 #2.0 * maxAbsValue  # Symmetric range: -maxAbsValue to +maxAbsValue
+        self.defaultWindow_Jacobian = window_jacobian
+        self.defaultLevel_Jacobian = level_jacobian
+    
+    
         disabledModify = displayNode.StartModify()
         displayNode.SetAutoWindowLevel(0)
         displayNode.SetWindowLevel(window, level)
@@ -2630,17 +2561,55 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.windowSpinBox.maximum = (dataMax - dataMin) * 2
         self.ui.levelSpinBox.minimum = dataMin - padding
         self.ui.levelSpinBox.maximum = dataMax + padding
+        # STORE DEFAULT VALUES
+        self.defaultWindow_DisplacementMag = window
+        self.defaultLevel_DisplacementMag = level
+
+        #By default, set to displacement magnitude
+        # self.setWindowLevel(volumeNode, self.defaultWindow_DisplacementMag, self.defaultLevel_DisplacementMag )
+        # self.updateVolumeWindowLevel(self.defaultWindow_DisplacementMag, self.defaultLevel_DisplacementMag)
+
+
+    def setWindowLevel(self, volumeNode, window, level):
+        displayNode = volumeNode.GetDisplayNode()
+        imageData = volumeNode.GetImageData()
+
+
+
+        scalarRange = imageData.GetScalarRange()
+        dataMin = scalarRange[0]
+        dataMax = scalarRange[1]
+        
+        # Calculate min and max from window and level
+        minValue = level - window / 2.0
+        maxValue = level + window / 2.0
+        
+        # Set slider range based on data range (not threshold range)
+        padding = (dataMax - dataMin) * 0.1
+        self.ui.windowLevelSlider.minimum = dataMin - padding
+        self.ui.windowLevelSlider.maximum = dataMax + padding
+        
+        # Set slider values to the threshold/visualization range
+        self.ui.windowLevelSlider.minimumValue = minValue
+        self.ui.windowLevelSlider.maximumValue = maxValue
+        
+        # Set spin box ranges
+        self.ui.windowSpinBox.minimum = 0
+        self.ui.windowSpinBox.maximum = (dataMax - dataMin) * 2
+        self.ui.levelSpinBox.minimum = dataMin - padding
+        self.ui.levelSpinBox.maximum = dataMax + padding
         
         # Set spin box values
         self.ui.windowSpinBox.value = window
         self.ui.levelSpinBox.value = level
-        
-        print(f"Data range: [{dataMin}, {dataMax}]")
+
+
         print(f"Default Window/Level: window={window}, level={level}")
         print(f"Threshold range: [{minValue}, {maxValue}]")
 
 
-    def onResetWindowLevel(self):
+
+    def onResetWindowLevel(self, volumeNode):
         '''
         Reset window/level to default values
         '''
@@ -2651,21 +2620,31 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.initializeWindowLevelControls(selectedVolume)
             return
         
-        # Use stored defaults
-        window = self.defaultWindow
-        level = self.defaultLevel
+        displayNode = volumeNode.GetDisplayNode()
+
+        colorNode = displayNode.GetColorNode()
         
+        if colorNode and "JacobianMap" in colorNode.GetName():
+            window = self.defaultWindow_Jacobian
+            level = self.defaultLevel_Jacobian
+
+        else:
+            window = self.defaultWindow_DisplacementMag
+            level = self.defaultLevel_DisplacementMag
+
+        # Use stored defaults
+
         # Block signals to prevent multiple updates
         self.updatingWindowLevel = True
         
-        # Update all controls
-        self.ui.windowSpinBox.value = window
-        self.ui.levelSpinBox.value = level
+        # # Update all controls
+        # self.ui.windowSpinBox.value = window
+        # self.ui.levelSpinBox.value = level
         
-        minVal = level - window / 2.0
-        maxVal = level + window / 2.0
-        self.ui.windowLevelSlider.minimumValue = minVal
-        self.ui.windowLevelSlider.maximumValue = maxVal
+        # minVal = level - window / 2.0
+        # maxVal = level + window / 2.0
+        # self.ui.windowLevelSlider.minimumValue = minVal
+        # self.ui.windowLevelSlider.maximumValue = maxVal
         
         # Update display node
         self.updateVolumeWindowLevel(window, level)
@@ -2673,6 +2652,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.updatingWindowLevel = False
         
         print(f"Reset to default: window={window}, level={level}")
+
+
 
     def onWindowLevelSliderChanged(self, minVal, maxVal):
         '''
