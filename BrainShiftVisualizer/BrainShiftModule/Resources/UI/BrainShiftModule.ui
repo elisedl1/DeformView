@@ -162,7 +162,7 @@
       <string extracomment="Tester"/>
      </property>
      <property name="text">
-      <string>Load Displacement Magnitude</string>
+      <string>Load Displacement Magnitude Color Map</string>
      </property>
     </widget>
    </item>
