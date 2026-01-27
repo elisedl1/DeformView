@@ -221,7 +221,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #self.ui.loadJacobianButton.setIconSize(qt.QSize(80, 50))
       
 
-        #self.enableVTKErrorTracking()
+        self.enableVTKErrorTracking()
 
         self.cleanupDuplicateColorNodes("JacobianMap")
         self.removeAllNamedNode("JacobianMap")
@@ -426,25 +426,25 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     import numpy as np
 
-    # def enableVTKErrorTracking(self):
-    #     """Enable detailed VTK error tracking with stack traces"""
-    #     import vtk
+    def enableVTKErrorTracking(self):
+        """Enable detailed VTK error tracking with stack traces"""
+        import vtk
         
-    #     # Create an error observer
-    #     def errorCallback(obj, event):
-    #         import traceback
-    #         print("\n" + "="*60)
-    #         print("VTK ERROR DETECTED:")
-    #         print("="*60)
-    #         traceback.print_stack()
-    #         print("="*60 + "\n")
+        # Create an error observer
+        def errorCallback(obj, event):
+            import traceback
+            print("\n" + "="*60)
+            print("VTK ERROR DETECTED:")
+            print("="*60)
+            traceback.print_stack()
+            print("="*60 + "\n")
         
-    #     # Add observer to VTK output window
-    #     errorObserver = vtk.vtkFileOutputWindow()
-    #     vtk.vtkOutputWindow.SetInstance(errorObserver)
+        # Add observer to VTK output window
+        errorObserver = vtk.vtkFileOutputWindow()
+        vtk.vtkOutputWindow.SetInstance(errorObserver)
         
-    #     # You can also observe specific objects
-    #     return errorCallback
+        # You can also observe specific objects
+        return errorCallback
     
 
 
@@ -628,6 +628,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.colorMapSelector.setCurrentNode(HotToColdRainbowNode)
             
         
+
+    
 
     def diagnose_colormap_application(self, volumeNode):
         """
@@ -1421,6 +1423,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         Remove all but the first instance of a color node
         """
         allNodes = slicer.mrmlScene.GetNodesByName(nodeName)
+        
+        # existingNode = slicer.mrmlScene.GetFirstNodeByName(nodeName)
+        # if existingNode:
+        #     slicer.mrmlScene.RemoveNode(existingNode)
+        #     print("removed JacobianMap")
+
         allNodes.InitTraversal()
         
         nodes_to_remove = []
@@ -1495,40 +1503,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     #     return colorNode
 
-    # def createJacobianColorNode(self):
-    #     """
-    #     Create Jacobian colormap - only once, reuse if exists
-    #     """
-    #     existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
-        
-    #     if existingNode:
-    #         existingNode.SetAttribute("MyColourMaps", "1")
-    #         return existingNode
-
-    #     print("Creating new JacobianMap")
-        
-    #     colorNode = slicer.vtkMRMLColorTableNode()
-    #     colorNode.SetName("JacobianMap")
-    #     colorNode.SetAttribute("DisplayName", "Jacobian (Compression/Expansion)")
-    #     colorNode.SetAttribute("MyColourMaps", "1")
-    #     colorNode.SetTypeToUser()
-    #     colorNode.SetNumberOfColors(2)
-    #     colorNode.SetNoName("")
-    #     colorNode.SetSingletonTag("JacobianMap")
-
-        
-    #     # Set only two colors
-    #     colorNode.SetColor(0, 0.0, 0.0, 1.0, 1.0)  # Blue for contracting
-    #     colorNode.SetColorName(0, "Contracting")
-        
-    #     colorNode.SetColor(1, 1.0, 0.0, 0.0, 1.0)  # Red for expanding
-    #     colorNode.SetColorName(1, "Expanding")
-                
-    #     slicer.mrmlScene.AddNode(colorNode)
-
-    #     return colorNode
-
-
     def createJacobianColorNode(self):
         """
         Create Jacobian colormap - only once, reuse if exists
@@ -1559,16 +1533,51 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         colorNode.SetColorName(1, "Expanding")
                 
         slicer.mrmlScene.AddNode(colorNode)
-        
-        # Force lookup table initialization
-        lut = colorNode.GetLookupTable()
-        if lut:
-            lut.SetNumberOfTableValues(2)
-            lut.SetTableRange(0, 1)  # Set range to match 2 colors (0 and 1)
-            lut.ForceBuild()  # Force build instead of Build()
-            colorNode.Modified()  # Mark as modified to trigger updates
-        
+
         return colorNode
+
+
+    # def createJacobianColorNode(self):
+    #     """
+    #     Create Jacobian colormap - discrete blue (contraction) / red (expansion)
+    #     """
+    #     existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
+        
+    #     if existingNode:
+    #         existingNode.SetAttribute("MyColourMaps", "1")
+    #         return existingNode
+
+    #     print("Creating new JacobianMap")
+        
+    #     colorNode = slicer.vtkMRMLColorTableNode()
+    #     colorNode.SetName("JacobianMap")
+    #     colorNode.SetAttribute("DisplayName", "Jacobian (Compression/Expansion)")
+    #     colorNode.SetAttribute("MyColourMaps", "1")
+    #     colorNode.SetTypeToUser()
+        
+    #     # Use 256 colors but make it binary-ish
+    #     colorNode.SetNumberOfColors(256)
+        
+    #     # Set colors: 0-127 = blue (contraction), 128-255 = red (expansion)
+    #     for i in range(256):
+    #         if i < 128:
+    #             # Blue for contraction (negative percentages)
+    #             colorNode.SetColor(i, 0.0, 0.0, 1.0, 1.0)
+    #             colorNode.SetColorName(i, "Contracting")
+    #         else:
+    #             # Red for expansion (positive percentages)
+    #             colorNode.SetColor(i, 1.0, 0.0, 0.0, 1.0)
+    #             colorNode.SetColorName(i, "Expanding")
+        
+    #     colorNode.SetNoName("")
+    #     slicer.mrmlScene.AddNode(colorNode)
+        
+    #     return colorNode
+
+
+
+
+    
 
 
     def createInputSection(self):
@@ -2070,37 +2079,13 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.loadedTransformVolume.setCurrentNode(displacementVolume)
             self.onLoadDisplacementVolume(flag=0)
 
-
-
-            #if colorNode and dispDisplay:
-                #dispDisplay.SetAndObserveColorNodeID(colorNode.GetID())
-            # --- end ---
-
-            #if colorNode and dispDisplay:
-                #dispDisplay.SetAndObserveColorNodeID(colorNode.GetID())
-            # --- end ---
-
-
-
-
-            # self._parameterNode.jacobianMagnitudeVolume = jacobianVolume  # Save for access
-            # self._parameterNode.displacementMagnitudeVolume = displacementVolume  # Save for access
-
-
-            # slicer.util.setSliceViewerLayers(
-            #     # background=self._parameterNode.referenceVolume,
-            #     background=self._parameterNode.backgroundVolume,
-            #     foreground=#displacementVolume#self._parameterNode.displacementMagnitudeVolume
-                                
-            # )
-            
-            # TODO: Add this back in if we want to directly load the colour map 
-            colorNode = self.ui.colorMapSelector.currentNode()
-            if colorNode and self._parameterNode.displacementMagnitudeVolume:
-                print("In 490!!!")
-                displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
-                if displayNode:
-                    displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+        
+            # colorNode = self.ui.colorMapSelector.currentNode()
+            # if colorNode and self._parameterNode.displacementMagnitudeVolume:
+            #     print("In 490!!!")
+            #     displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
+            #     if displayNode:
+            #         displayNode.SetAndObserveColorNodeID(colorNode.GetID())
 
 
 
@@ -2242,25 +2227,44 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # --- AUTO-SELECT THE VOLUME FROM SCENE ---
         selectedVolume = None
-
+            
+        if flag == 0:
+            # Load displacement magnitude volume
+            suffix = "_displacementMagnitude"
+        else:
+            # Load jacobian magnitude volume
+            suffix = "_jacobianMagnitude"
+        
+        # Find the volume by suffix
+        scene = slicer.mrmlScene
+        for i in range(scene.GetNumberOfNodesByClass("vtkMRMLScalarVolumeNode")):
+            node = scene.GetNthNodeByClass(i, "vtkMRMLScalarVolumeNode")
+            if node.GetName() and suffix in node.GetName():
+                selectedVolume = node
+                break
+        
+        # Sync with UI
+        if selectedVolume:
+            self.ui.loadedTransformVolume.setCurrentNode(selectedVolume)
+                
         # first try: get current node from combo box (if anything was there)
-        selectedVolume = self.ui.loadedTransformVolume.currentNode()
+        #selectedVolume = self.ui.loadedTransformVolume.currentNode()
 
-        # second: if nothing selected, find it by suffix
-        if not selectedVolume:
-            suffix = "_displacementMagnitude" if flag == 0 else "_jacobianMagnitude"
-            scene = slicer.mrmlScene
-            for i in range(scene.GetNumberOfNodesByClass("vtkMRMLScalarVolumeNode")):
-                node = scene.GetNthNodeByClass(i, "vtkMRMLScalarVolumeNode")
-                if node.GetName() and suffix in node.GetName():
-                    selectedVolume = node
-                    break
+        # # second: if nothing selected, find it by suffix
+        # if not selectedVolume:
+        #     suffix = "_displacementMagnitude" if flag == 0 else "_jacobianMagnitude"
+        #     scene = slicer.mrmlScene
+        #     for i in range(scene.GetNumberOfNodesByClass("vtkMRMLScalarVolumeNode")):
+        #         node = scene.GetNthNodeByClass(i, "vtkMRMLScalarVolumeNode")
+        #         if node.GetName() and suffix in node.GetName():
+        #             selectedVolume = node
+        #             break
         
 
 
-            # sync with UI so all other code works
-            if selectedVolume:
-                self.ui.loadedTransformVolume.setCurrentNode(selectedVolume)
+        #     # sync with UI so all other code works
+        #     if selectedVolume:
+        #         self.ui.loadedTransformVolume.setCurrentNode(selectedVolume)
 
         #  nothing found? show error and return
         if not selectedVolume or not selectedVolume.GetDisplayNode():
@@ -3636,8 +3640,14 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
             "vtkMRMLScalarVolumeNode",
             referenceVolume.GetName() + "_jacobianMagnitude"
         )
+
+       
         # sitkUtils.PushVolumeToSlicer(jacDet, targetNode=outputVolume)
         sitkUtils.PushVolumeToSlicer(jacPercent, targetNode=outputVolume)
+
+        array = sitk.GetArrayFromImage(jacPercent)
+        print(f"Jacobian Percent Range: min={array.min():.2f}, max={array.max():.2f}")
+        print(f"Sample values: {array.flatten()[:10]}")  # First 10 values
 
         # add flag
         img = outputVolume.GetImageData()
@@ -3648,20 +3658,19 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         img.GetFieldData().AddArray(flagArray)
         outputVolume.Modified()
 
-        # Step 7: Display setup
+        # # Step 7: Display setup
+        # if not outputVolume.GetDisplayNode():
+        #     outputVolume.CreateDefaultDisplayNodes()
+
+        # displayNode = outputVolume.GetDisplayNode()
+        # displayNode.AutoWindowLevelOff()
+
+         # Step 7: Display setup
         if not outputVolume.GetDisplayNode():
             outputVolume.CreateDefaultDisplayNodes()
 
         displayNode = outputVolume.GetDisplayNode()
-        displayNode.AutoWindowLevelOff()
-        # displayNode.SetWindow(5.0)
-        # displayNode.SetLevel(2.5)
-        # array = sitk.GetArrayFromImage(jacDet)
-        array = sitk.GetArrayFromImage(jacPercent)
-        # minVal, maxVal = float(array.min()), float(array.max())
-        # displayNode.SetWindow(maxVal - minVal)
-        # displayNode.SetLevel((maxVal + minVal) / 2)
-        
+
         existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
         
         if existingNode:
@@ -3673,6 +3682,32 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
             colorNode = slicer.mrmlScene.GetNodeByID(defaultColourMap)
             displayNode.SetAndObserveColorNodeID(colorNode.GetID())
 
+        displayNode.AutoWindowLevelOff()
+
+        #Set threshold at 0 to split contraction (negative) from expansion (positive)
+        displayNode.SetThreshold(0.0, True)  # Enable threshold at 0
+        displayNode.SetLowerThreshold(0.0)
+        displayNode.SetUpperThreshold(0.0)
+
+        # Adjust window/level so 0 is the dividing point
+        displayNode.SetWindowLevel(100, 0)
+
+        # Set window/level for percentage range
+        # For example, -50% to +50% range
+        #displayNode.SetWindowLevel(100, 0)  # window=100 (range), level=0 (center)
+        # Or adjust based on your expected range of deformation
+
+
+        # displayNode.SetWindow(5.0)
+        # displayNode.SetLevel(2.5)
+        # array = sitk.GetArrayFromImage(jacDet)
+        array = sitk.GetArrayFromImage(jacPercent)
+        # minVal, maxVal = float(array.min()), float(array.max())
+        # displayNode.SetWindow(maxVal - minVal)
+        # displayNode.SetLevel((maxVal + minVal) / 2)
+        
+
+
             #colorNode = slicer.util.getNode("DefaultColourMap")
 
 
@@ -3680,6 +3715,11 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         #self.ui.jacobianMagnitudeVolume.setCurrentNode(outputVolume)
         #self._parameterNode().SetNodeReferenceID("jacobianMagnitudeVolume", outputVolume.GetID())
 
+        # Just before return:
+        testArray = slicer.util.arrayFromVolume(outputVolume)
+        print(f"✓ Volume '{outputVolume.GetName()}' data range: [{testArray.min():.2f}, {testArray.max():.2f}]")
+        if testArray.min() >= 0:
+            print("⚠ WARNING: No negative values found! Data might not be percentages.")
         return outputVolume
 
 
