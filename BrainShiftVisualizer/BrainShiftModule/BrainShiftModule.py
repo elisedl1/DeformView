@@ -2397,36 +2397,39 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             for i in range(colorLegendNodes.GetNumberOfItems()):
                 legendNode = colorLegendNodes.GetItemAsObject(i)
                 if legendNode.GetNodeReferenceID("primaryDisplay") == displayNode.GetID():
-                    legendNode.SetTitleText(" ")  # clear title for both jacobian and displacement
+                    # Clear all settings first
                     legendNode.SetVisibility(False)
+                    legendNode.SetTitleText(" ")
 
                     if flag == 0:  # displacement
-                        # legendNode.SetTitleText("Displacement (mm)")
-                        legendNode.SetUseColorNamesForLabels(False)  # show numeric values
+                        # Reset jacobian-specific settings
+                        legendNode.SetNumberOfLabels(0)  # Reset to default (auto)
+                        legendNode.SetMaxNumberOfColors(256)  # Reset to full range
+                        legendNode.SetUseColorNamesForLabels(False)  # Show numeric values
+                        
+                        # Set displacement settings
+                        legendNode.SetSize(0.15, 0.5)
+                        legendNode.SetPosition(0.85, 0.25)
                         legendNode.SetVisibility(True)
-                        legendNode.SetSize(0.15, 0.5)  # (width, height) as fraction of viewport
-                        legendNode.SetPosition(0.85, 0.25)  # (x, y) position
     
            
                     elif flag == 1:  # jacobian
-
-                        #legendNode.SetNumberOfLabels(0)  # Show only 3 labels
-
+                        # Reset displacement settings and set jacobian-specific ones
+                        legendNode.SetUseColorNamesForLabels(True)
+                        legendNode.SetNumberOfLabels(2)
+                        legendNode.SetMaxNumberOfColors(2)
+                        
                         legendNode.SetTitleText("Jacobian Determinant")
-
-                        legendNode.SetUseColorNamesForLabels(True)  # Show only named colors
-                        legendNode.SetNumberOfLabels(2)  # Show only 3 labels
-
-                        legendNode.SetMaxNumberOfColors(2)          
                         legendNode.SetSize(0.2, 0.5)
                         legendNode.SetPosition(0.85, 0.25)
                         
                         titleProperty = legendNode.GetTitleTextProperty()
-                        titleProperty.SetFontSize(12)                        
+                        titleProperty.SetFontSize(12)
+                        
                         legendNode.SetVisibility(True)
 
 
-                    else: # other type of node
+                    else:  # other type of node
                         legendNode.SetUseColorNamesForLabels(False)
                         legendNode.SetVisibility(False)
         
