@@ -2935,9 +2935,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # displacement magnitude (mm)
             label = f"{value:.2f} mm"
         elif flag == 1:
-            # jacobian -> percent difference from 1
-            percent_diff = (value - 1.0) * 100.0
-            label = f"{percent_diff:+.1f}%"
+            # display percent
+            label = f"{value:+.1f}%"
         else:
             label = f"{value:.2f}"
 
@@ -3625,6 +3624,10 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         # Step 4: Compute Jacobian determinant
         jacDet = sitk.DisplacementFieldJacobianDeterminant(displacementField)
 
+        # Step 6: Convert to percent change from 1
+        # (J - 1) * 100
+        jacPercent = sitk.Multiply(sitk.Subtract(jacDet, 1.0), 100.0)
+
         # Step 5: Take magnitude (absolute value)
         #jacMagnitude = sitk.Abs(jacDet)
 
@@ -3633,7 +3636,8 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
             "vtkMRMLScalarVolumeNode",
             referenceVolume.GetName() + "_jacobianMagnitude"
         )
-        sitkUtils.PushVolumeToSlicer(jacDet, targetNode=outputVolume)
+        # sitkUtils.PushVolumeToSlicer(jacDet, targetNode=outputVolume)
+        sitkUtils.PushVolumeToSlicer(jacPercent, targetNode=outputVolume)
 
         # add flag
         img = outputVolume.GetImageData()
@@ -3652,10 +3656,11 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         displayNode.AutoWindowLevelOff()
         # displayNode.SetWindow(5.0)
         # displayNode.SetLevel(2.5)
-        array = sitk.GetArrayFromImage(jacDet)
-        minVal, maxVal = float(array.min()), float(array.max())
-        displayNode.SetWindow(maxVal - minVal)
-        displayNode.SetLevel((maxVal + minVal) / 2)
+        # array = sitk.GetArrayFromImage(jacDet)
+        array = sitk.GetArrayFromImage(jacPercent)
+        # minVal, maxVal = float(array.min()), float(array.max())
+        # displayNode.SetWindow(maxVal - minVal)
+        # displayNode.SetLevel((maxVal + minVal) / 2)
         
         existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
         
