@@ -1387,7 +1387,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         colourmarkupTextSizeSliderLayout = qt.QHBoxLayout()
         colourmarkupTextSizeSliderLayout.addWidget(self.ui.markupTextSizeSlider)
         markupTextSizeLayout.addLayout(colourmarkupTextSizeSliderLayout)
-        vizLayout.addRow("Text size :", markupTextSizeLayout)
+        vizLayout.addRow("Cursor text size:", markupTextSizeLayout)
 
         # MARKUP SIZE
         # markupSizeSlider
@@ -1396,7 +1396,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         colourmarkupSizeSliderLayout = qt.QHBoxLayout()
         colourmarkupSizeSliderLayout.addWidget(self.ui.markupSizeSlider)
         markupSizeLayout.addLayout(colourmarkupSizeSliderLayout)
-        vizLayout.addRow("Cursor size :", markupSizeLayout)
+        vizLayout.addRow("Cursor marker size:", markupSizeLayout)
 
 
         # Add stretch at the end
@@ -1472,6 +1472,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #return first_node
 
     
+   
     # def createJacobianColorNode(self):
     #     """
     #     Create Jacobian colormap - only once, reuse if exists
@@ -1479,49 +1480,55 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     #     existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
         
     #     if existingNode:
-    #         # Don't remove it! Just return the existing one
-    #         #print("JacobianMap already exists, reusing")
-    #         existingNode.SetAttribute("MyColourMaps", "1")  # Ensure attribute is set
+    #         existingNode.SetAttribute("MyColourMaps", "1")
     #         return existingNode
 
-    #     # Only create if it doesn't exist
     #     print("Creating new JacobianMap")
         
-    #     # Use ColorTableNode
     #     colorNode = slicer.vtkMRMLColorTableNode()
     #     colorNode.SetName("JacobianMap")
     #     colorNode.SetAttribute("DisplayName", "Jacobian (Compression/Expansion)")
     #     colorNode.SetAttribute("MyColourMaps", "1")
     #     colorNode.SetTypeToUser()
     #     colorNode.SetNumberOfColors(256)
+    #     colorNode.SetNoName("")  # Empty string, or
+    #     colorNode.SetSingletonTag("JacobianMap")  # Set singleton tag
+
         
-    #     # Manually set colors in the table
+    #     # Set colors first
     #     for i in range(256):
     #         val = i / 255.0
     #         if val < 0.5:  # Below neutral (compression - blue)
     #             intensity = val * 2.0
     #             r, g, b = 0.0, 0.0, 0.6 + intensity * 0.4
+    #             #colorNode.SetColorName(i, "Contracting")
+
     #         elif val > 0.5:  # Above neutral (expansion - red)
     #             intensity = (val - 0.5) * 2.0
     #             r, g, b = 0.6 + intensity * 0.4, 0.0, 0.0
+    #             #colorNode.SetColorName(i, "Expansion")
+
     #         else:  # Neutral (white)
     #             r, g, b = 1.0, 1.0, 1.0
-            
-    #         # c##olorNode.SetColor(i, r, g, b, 1.0)
+    #             #colorNode.SetColorName(i, "Neutral")
 
-    #         # Set a name for EVERY color, not just 0, 128, 255
-    #         if i == 0:
-    #             colorNode.SetColor(i, r, g, b, 1.0, "Contracting")
-    #         elif i == 128:
-    #             colorNode.SetColor(i, r, g, b, 1.0, "Neutral (1.0)")
-    #         elif i == 255:
-    #             colorNode.SetColor(i, r, g, b, 1.0, "Expanding")
-    #         else:
-    #             colorNode.SetColor(i, r, g, b, 1.0)
-            
+    #         #colorNode.SetColor(i, "")
+    #         colorNode.SetColor(i, r, g, b, 1.0)
+    #         colorNode.SetColorName(i, "")
+
+    #         #THIS IS SO NECESSARY: 
+
+    #     # lut = colorNode.GetLookupTable()
+    #     # if lut:
+    #     #     lut.SetVectorModeToComponent()  # Example: set properties
+
+    #     colorNode.SetColorName(64, "Contracting")
+    #     colorNode.SetColorName(191, "Expanding")
+                
     #     slicer.mrmlScene.AddNode(colorNode)
+
     #     return colorNode
-   
+
     def createJacobianColorNode(self):
         """
         Create Jacobian colormap - only once, reuse if exists
@@ -1539,40 +1546,17 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         colorNode.SetAttribute("DisplayName", "Jacobian (Compression/Expansion)")
         colorNode.SetAttribute("MyColourMaps", "1")
         colorNode.SetTypeToUser()
-        colorNode.SetNumberOfColors(256)
-        colorNode.SetNoName("")  # Empty string, or
-        colorNode.SetSingletonTag("JacobianMap")  # Set singleton tag
+        colorNode.SetNumberOfColors(2)
+        colorNode.SetNoName("")
+        colorNode.SetSingletonTag("JacobianMap")
 
         
-        # Set colors first
-        for i in range(256):
-            val = i / 255.0
-            if val < 0.5:  # Below neutral (compression - blue)
-                intensity = val * 2.0
-                r, g, b = 0.0, 0.0, 0.6 + intensity * 0.4
-                #colorNode.SetColorName(i, "Contracting")
-
-            elif val > 0.5:  # Above neutral (expansion - red)
-                intensity = (val - 0.5) * 2.0
-                r, g, b = 0.6 + intensity * 0.4, 0.0, 0.0
-                #colorNode.SetColorName(i, "Expansion")
-
-            else:  # Neutral (white)
-                r, g, b = 1.0, 1.0, 1.0
-                #colorNode.SetColorName(i, "Neutral")
-
-            #colorNode.SetColor(i, "")
-            colorNode.SetColor(i, r, g, b, 1.0)
-            colorNode.SetColorName(i, "")
-
-            #THIS IS SO NECESSARY: 
-
-        # lut = colorNode.GetLookupTable()
-        # if lut:
-        #     lut.SetVectorModeToComponent()  # Example: set properties
-
-        colorNode.SetColorName(64, "Contracting")
-        colorNode.SetColorName(191, "Expanding")
+        # Set only two colors
+        colorNode.SetColor(0, 0.0, 0.0, 1.0, 1.0)  # Blue for contracting
+        colorNode.SetColorName(0, "Contracting")
+        
+        colorNode.SetColor(1, 1.0, 0.0, 0.0, 1.0)  # Red for expanding
+        colorNode.SetColorName(1, "Expanding")
                 
         slicer.mrmlScene.AddNode(colorNode)
 
@@ -2432,19 +2416,19 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
                         legendNode.SetUseColorNamesForLabels(True)  # Show only named colors
                         legendNode.SetNumberOfLabels(2)  # Show only 3 labels
-                        legendNode.SetVisibility(True)
 
-                        legendNode.SetMaxNumberOfColors(256)          
+                        legendNode.SetMaxNumberOfColors(2)          
                         legendNode.SetSize(0.2, 0.5)
                         legendNode.SetPosition(0.85, 0.25)
                         
                         titleProperty = legendNode.GetTitleTextProperty()
                         titleProperty.SetFontSize(12)                        
-                        
+                        legendNode.SetVisibility(True)
+
 
                     else: # other type of node
                         legendNode.SetUseColorNamesForLabels(False)
-                        legendNode.SetVisibility(True)
+                        legendNode.SetVisibility(False)
         
 
 
