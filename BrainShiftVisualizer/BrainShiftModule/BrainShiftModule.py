@@ -204,15 +204,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # connect
         # self.ui.loadDisplacementVolumeButton.connect("clicked(bool)", self.onLoadDisplacementVolume)
 
-        # new displacement and jacobian button connections
-        self.ui.loadDisplacementButton.connect(
-            "clicked(bool)", lambda: self.onLoadDisplacementVolume(flag=0)
-        )
-        self.ui.loadDisplacementButton.setToolTip(
-            "Load a displacement field volume.\n"
-            "Used to visualize voxel-wise displacement magnitude (mm)."
-        )
-
         #self.ui.loadDisplacementButton.setIcon(self.createDisplacementIcon())
         #self.ui.loadDisplacementButton.setIconSize(qt.QSize(80, 50))
 
@@ -382,6 +373,56 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #             # Update the selector to match
         #             self.ui.colorMapSelector.setCurrentNode(defaultColorNode)
         #             print(f"Reset color map to default: {defaultColorNode.GetName()}")
+
+        # connect displacement button WTIH ICON
+        self.ui.loadDisplacementButton.connect(
+            "clicked(bool)", lambda: self.onLoadDisplacementVolume(flag=0)
+        )
+        # add icon
+        iconPath = self.resourcePath("Icons/displacement_icon.png")
+        if os.path.exists(iconPath):
+            self.ui.loadDisplacementButton.setIcon(qt.QIcon(iconPath))
+            self.ui.loadDisplacementButton.setIconSize(qt.QSize(60, 40))
+
+        self.ui.loadDisplacementButton.setText("Load Displacement Magnitude\nColor Map")
+
+
+        # connect jacobian button WTIH ICON
+        self.ui.loadJacobianButton.connect(
+            "clicked(bool)", lambda: self.onLoadDisplacementVolume(flag=1)
+        )
+        # add icon
+        iconPath = self.resourcePath("Icons/jacobian_icon.png")
+        if os.path.exists(iconPath):
+            self.ui.loadJacobianButton.setIcon(qt.QIcon(iconPath))
+            self.ui.loadJacobianButton.setIconSize(qt.QSize(60, 40))
+
+        self.ui.loadJacobianButton.setText("Load\nJacobian\nColor Map")
+
+
+
+    def setupWithResourcePath(self):
+        """Alternative approach using module resource path"""
+        
+        # Get icon path relative to module resources
+        iconPath = os.path.join(
+            os.path.dirname(self.resourcePath("")),
+            "Resources",
+            "Icons",
+            "jacobian_icon.png"
+        )
+        
+        
+        if os.path.exists(iconPath):
+            icon = qt.QIcon(iconPath)
+            self.ui.loadDisplacementButton.setIcon(icon)
+            self.ui.loadDisplacementButton.setIconSize(qt.QSize(80, 50))
+            
+            # Make the button larger to accommodate icon
+            self.ui.loadDisplacementButton.setMinimumSize(180, 60)
+        else:
+            logging.warning(f"Icon file not found at: {iconPath}")
+
 
 
     import numpy as np
