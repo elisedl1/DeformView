@@ -221,13 +221,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #self.ui.loadJacobianButton.setIconSize(qt.QSize(80, 50))
       
 
-        self.enableVTKErrorTracking()
+        #self.enableVTKErrorTracking()
 
         self.cleanupDuplicateColorNodes("JacobianMap")
         self.removeAllNamedNode("JacobianMap")
 
         self.resetBuiltInColorNodes()
-        #self.resetAllColorNodes()
         self.selectColourMap()
 
 
@@ -427,34 +426,27 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     import numpy as np
 
-    def enableVTKErrorTracking(self):
-        """Enable detailed VTK error tracking with stack traces"""
-        import vtk
+    # def enableVTKErrorTracking(self):
+    #     """Enable detailed VTK error tracking with stack traces"""
+    #     import vtk
         
-        # Create an error observer
-        def errorCallback(obj, event):
-            import traceback
-            print("\n" + "="*60)
-            print("VTK ERROR DETECTED:")
-            print("="*60)
-            traceback.print_stack()
-            print("="*60 + "\n")
+    #     # Create an error observer
+    #     def errorCallback(obj, event):
+    #         import traceback
+    #         print("\n" + "="*60)
+    #         print("VTK ERROR DETECTED:")
+    #         print("="*60)
+    #         traceback.print_stack()
+    #         print("="*60 + "\n")
         
-        # Add observer to VTK output window
-        errorObserver = vtk.vtkFileOutputWindow()
-        vtk.vtkOutputWindow.SetInstance(errorObserver)
+    #     # Add observer to VTK output window
+    #     errorObserver = vtk.vtkFileOutputWindow()
+    #     vtk.vtkOutputWindow.SetInstance(errorObserver)
         
-        # You can also observe specific objects
-        return errorCallback
+    #     # You can also observe specific objects
+    #     return errorCallback
     
 
-    # def resetBuiltInColorNodes(self):
-    #     """Reset built-in color nodes to defaults"""
-    #     colorLogic = slicer.modules.colors.logic()
-    #     # This will reload all default color nodes
-    #     colorLogic.RemoveDefaultColorNodes()
-
-    #     colorLogic.AddDefaultColorNodes()
 
     def resetBuiltInColorNodes(self):
         """Reset built-in color nodes to defaults while preserving existing volume color assignments"""
@@ -490,34 +482,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     #         dispNode.SetAndObserveColorNodeID(defaultColorNode.GetID())
 
 
-    # def resetBuiltInColorNodes(self):
-    #     """Reset built-in color nodes to defaults while preserving existing volume color assignments"""
-        
-    #     # Save current color node assignments
-    #     volumes = slicer.util.getNodesByClass('vtkMRMLScalarVolumeNode')
-    #     colorNodeNames = {}
-    #     for vol in volumes:
-    #         dispNode = vol.GetDisplayNode()
-    #         if dispNode:
-    #             colorNode = dispNode.GetColorNode()
-    #             if colorNode:
-    #                 colorNodeNames[vol.GetID()] = colorNode.GetName()
-        
-    #     # Reset color nodes
-    #     colorLogic = slicer.modules.colors.logic()
-    #     colorLogic.RemoveDefaultColorNodes()
-    #     colorLogic.AddDefaultColorNodes()
-        
-    #     # Restore color node assignments
-    #     for volID, colorName in colorNodeNames.items():
-    #         vol = slicer.mrmlScene.GetNodeByID(volID)
-    #         if vol:
-    #             dispNode = vol.GetDisplayNode()
-    #             if dispNode:
-    #                 colorNode = slicer.util.getNode(colorName)
-    #                 if colorNode:
-    #                     dispNode.SetAndObserveColorNodeID(colorNode.GetID())
-            
+   
+    
     def cleanupCorruptedColormaps(self, name_str, type_str):
         """
         Remove corrupted/empty color nodes and recreate them properly.
@@ -739,152 +705,152 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         print("=== END DIAGNOSTIC ===\n")
 
 
-    def create_colour_node_from_matplotlib(self, name_str, cmap_name, num_colors=256):
-        """
-        Create a properly configured 3D Slicer color node from matplotlib colormap.
-        """
-        try:
-            import matplotlib
-            import matplotlib.pyplot as plt
-            import numpy as np
-        except ImportError as e:
-            print(f"Matplotlib not available: {e}")
-            return None
+    # def create_colour_node_from_matplotlib(self, name_str, cmap_name, num_colors=256):
+    #     """
+    #     Create a properly configured 3D Slicer color node from matplotlib colormap.
+    #     """
+    #     try:
+    #         import matplotlib
+    #         import matplotlib.pyplot as plt
+    #         import numpy as np
+    #     except ImportError as e:
+    #         print(f"Matplotlib not available: {e}")
+    #         return None
         
-        # Remove existing node if present
-        #node = slicer.mrmlScene.GetFirstNodeByName(name_str)
-        existing_node = slicer.mrmlScene.GetFirstNodeByName(name_str)
-        if existing_node:
-            #print(f"Matplotlib colormap {name_str} already exists")
-            return existing_node
-        # if node:
-        #     slicer.mrmlScene.RemoveNode(node)
+    #     # Remove existing node if present
+    #     #node = slicer.mrmlScene.GetFirstNodeByName(name_str)
+    #     existing_node = slicer.mrmlScene.GetFirstNodeByName(name_str)
+    #     if existing_node:
+    #         #print(f"Matplotlib colormap {name_str} already exists")
+    #         return existing_node
+    #     # if node:
+    #     #     slicer.mrmlScene.RemoveNode(node)
         
-        try:
-            mpl_cmap = matplotlib.colormaps[cmap_name].resampled(num_colors)
-        except:
-            mpl_cmap = plt.cm.get_cmap(cmap_name, num_colors)
+    #     try:
+    #         mpl_cmap = matplotlib.colormaps[cmap_name].resampled(num_colors)
+    #     except:
+    #         mpl_cmap = plt.cm.get_cmap(cmap_name, num_colors)
         
-        # Get RGBA values from matplotlib
-        colors_rgba = mpl_cmap(np.linspace(0, 1, num_colors))
+    #     # Get RGBA values from matplotlib
+    #     colors_rgba = mpl_cmap(np.linspace(0, 1, num_colors))
         
-        # Use ColorTableNode
-        colorNode = slicer.vtkMRMLColorTableNode()
-        colorNode.SetTypeToUser()
-        colorNode.SetNumberOfColors(num_colors)
-        colorNode.SetName(name_str)
-        #colorNode.SetAttribute("Category", "Matplotlib")
+    #     # Use ColorTableNode
+    #     colorNode = slicer.vtkMRMLColorTableNode()
+    #     colorNode.SetTypeToUser()
+    #     colorNode.SetNumberOfColors(num_colors)
+    #     colorNode.SetName(name_str)
+    #     #colorNode.SetAttribute("Category", "Matplotlib")
         
-        # CRITICAL FIX: Set the range to match how Slicer maps values
-        # Slicer typically uses the actual data range, not 0-255
-        lookupTable = colorNode.GetLookupTable()
-        lookupTable.SetNumberOfTableValues(num_colors)
+    #     # CRITICAL FIX: Set the range to match how Slicer maps values
+    #     # Slicer typically uses the actual data range, not 0-255
+    #     lookupTable = colorNode.GetLookupTable()
+    #     lookupTable.SetNumberOfTableValues(num_colors)
         
-        # Use normalized range (0.0 to 1.0) instead of (0 to 255)
-        # This matches how other Slicer colormaps work
-        lookupTable.SetRange(0.0, 255.0)
-        lookupTable.SetRampToLinear()
+    #     # Use normalized range (0.0 to 1.0) instead of (0 to 255)
+    #     # This matches how other Slicer colormaps work
+    #     lookupTable.SetRange(0.0, 255.0)
+    #     lookupTable.SetRampToLinear()
         
-        # Set each color
-        for i, (r, g, b, a) in enumerate(colors_rgba):
-            colorNode.SetColor(i, f"{cmap_name}_{i}", r, g, b, a)
-            # Map to normalized range
-            normalized_value = i / (num_colors - 1.0)
-            lookupTable.SetTableValue(i, r, g, b, a)
+    #     # Set each color
+    #     for i, (r, g, b, a) in enumerate(colors_rgba):
+    #         colorNode.SetColor(i, f"{cmap_name}_{i}", r, g, b, a)
+    #         # Map to normalized range
+    #         normalized_value = i / (num_colors - 1.0)
+    #         lookupTable.SetTableValue(i, r, g, b, a)
         
-        # Build and configure the lookup table
-        lookupTable.Build()
+    #     # Build and configure the lookup table
+    #     lookupTable.Build()
         
-        # IMPORTANT: Set these properties to match Slicer's behavior
-        colorNode.SetNamesInitialised(True)
-        colorNode.SaveWithSceneOff()  # Don't save with scene (like built-in colormaps)
+    #     # IMPORTANT: Set these properties to match Slicer's behavior
+    #     colorNode.SetNamesInitialised(True)
+    #     colorNode.SaveWithSceneOff()  # Don't save with scene (like built-in colormaps)
         
-        # Add to scene
-        slicer.mrmlScene.AddNode(colorNode)
-        colorNode.SetAttribute("MyColourMaps", "1")
+    #     # Add to scene
+    #     slicer.mrmlScene.AddNode(colorNode)
+    #     colorNode.SetAttribute("MyColourMaps", "1")
         
-        print(f"Created matplotlib colormap: {name_str} with {num_colors} colors")
-        print(f"  ✓ Lookup table validated: {num_colors} entries")
-        print(f"  Range: {lookupTable.GetRange()}")
-      # #and then add custom colour maps like this:
+    #     print(f"Created matplotlib colormap: {name_str} with {num_colors} colors")
+    #     print(f"  ✓ Lookup table validated: {num_colors} entries")
+    #     print(f"  Range: {lookupTable.GetRange()}")
+    #   # #and then add custom colour maps like this:
         
-        jacobianNode = self.createJacobianColorNode()
-        #self.ui.colorMapSelector.addAttribute(f"{jacobianNode}", "MyColourMaps", "1")
+    #     jacobianNode = self.createJacobianColorNode()
+    #     #self.ui.colorMapSelector.addAttribute(f"{jacobianNode}", "MyColourMaps", "1")
 
 
-        nodes_to_add = [("FullRainbow", "FullRainbow"),
-                         ("Iron", "Iron"),
-                        ("Grey", "Grey"),
-                        #("Plasma", "Plasma"),
-                        #("Cividis", "Cividis"),
-                         # ("Inferno", "Inferno"),
-                          # ("JacobianMap", "UserDefined"),
-                           #("Viridis", "Viridis"),
-                           ("Rainbow", "Rainbow"),
-                           #("FullRainbow", "FullRainbow")
-                           ("Ocean", "Ocean"),
-                           ("InvertedGrey", "InvGrey"),
-                            ("FMRI", "FMRI"),
-                           ("Yellow", "Yellow"),
-                           ("Warm1", "Warm1"),
-                           #("warmShade1", "WarmShade1"),
-                           #("CoolShade1", "CoolShade1"),
-                           #("DivergingBlueRed","DivergingBlueRed" ),
-                           #("Magma","Magma" ),
-                           #("Isodose_ColorTable_Default", "Isodose_ColorTable_Default"),
-                           # ("Isodose_ColorTable_Relative", "Isodose_ColorTable_Relative"),
-                           # ("JacobianMap", "Custom")
-           ]
-                           #("CoolToWarm", "CoolToWarm")]
+    #     nodes_to_add = [("FullRainbow", "FullRainbow"),
+    #                      ("Iron", "Iron"),
+    #                     ("Grey", "Grey"),
+    #                     #("Plasma", "Plasma"),
+    #                     #("Cividis", "Cividis"),
+    #                      # ("Inferno", "Inferno"),
+    #                       # ("JacobianMap", "UserDefined"),
+    #                        #("Viridis", "Viridis"),
+    #                        ("Rainbow", "Rainbow"),
+    #                        #("FullRainbow", "FullRainbow")
+    #                        ("Ocean", "Ocean"),
+    #                        ("InvertedGrey", "InvGrey"),
+    #                         ("FMRI", "FMRI"),
+    #                        ("Yellow", "Yellow"),
+    #                        ("Warm1", "Warm1"),
+    #                        #("warmShade1", "WarmShade1"),
+    #                        #("CoolShade1", "CoolShade1"),
+    #                        #("DivergingBlueRed","DivergingBlueRed" ),
+    #                        #("Magma","Magma" ),
+    #                        #("Isodose_ColorTable_Default", "Isodose_ColorTable_Default"),
+    #                        # ("Isodose_ColorTable_Relative", "Isodose_ColorTable_Relative"),
+    #                        # ("JacobianMap", "Custom")
+    #        ]
+    #                        #("CoolToWarm", "CoolToWarm")]
         
-        for number in nodes_to_add:
-            #print("adding node:", number)
-            name_str, type_str = number
-            new_node = self.create_colour_node(name_str, type_str)
-            #self.ui.colorMapSelector.setCurrentNode(new_node)
+    #     for number in nodes_to_add:
+    #         #print("adding node:", number)
+    #         name_str, type_str = number
+    #         new_node = self.create_colour_node(name_str, type_str)
+    #         #self.ui.colorMapSelector.setCurrentNode(new_node)
 
-        # nodes_to_add_pro = [ ("HotToCold", "HotToColdRainbow"),
-        #                 ("Plasma", "Plasma"),
-        #                 ("Cividis", "Cividis"),
-        #                   ("Inferno", "Inferno"),
-        #                    ("Viridis", "Viridis"),
-        #                    ("DivergingBlueRed","DivergingBlueRed" ),
-        #                    ("Magma","Magma" ),
-        #                    ("Isodose_ColorTable_Default", "Isodose_ColorTable_Default"),
-        #                    ("Isodose_ColorTable_Relative", "Isodose_ColorTable_Relative")
-        #                   ]
+    #     # nodes_to_add_pro = [ ("HotToCold", "HotToColdRainbow"),
+    #     #                 ("Plasma", "Plasma"),
+    #     #                 ("Cividis", "Cividis"),
+    #     #                   ("Inferno", "Inferno"),
+    #     #                    ("Viridis", "Viridis"),
+    #     #                    ("DivergingBlueRed","DivergingBlueRed" ),
+    #     #                    ("Magma","Magma" ),
+    #     #                    ("Isodose_ColorTable_Default", "Isodose_ColorTable_Default"),
+    #     #                    ("Isodose_ColorTable_Relative", "Isodose_ColorTable_Relative")
+    #     #                   ]
   
-        # for number in nodes_to_add_pro:
-        #     #print("adding node:", number)
-        #     name_str, type_str = number
-        #     new_node = self.create_procedural_colour_node(name_str)
-            #self.ui.c
-       # procedural_nodes = [
-        # ("Viridis", "Viridis"),
-        # ("Plasma", "Plasma"),
-        # ("Inferno", "Inferno"),
-        # ("Magma", "Magma"),
-        # ("Cividis", "Cividis"),
-        #  ]
+    #     # for number in nodes_to_add_pro:
+    #     #     #print("adding node:", number)
+    #     #     name_str, type_str = number
+    #     #     new_node = self.create_procedural_colour_node(name_str)
+    #         #self.ui.c
+    #    # procedural_nodes = [
+    #     # ("Viridis", "Viridis"),
+    #     # ("Plasma", "Plasma"),
+    #     # ("Inferno", "Inferno"),
+    #     # ("Magma", "Magma"),
+    #     # ("Cividis", "Cividis"),
+    #     #  ]
     
-        # for display_name, node_id in procedural_nodes:
-        #     self.create_procedural_colour_node(display_name, node_id)
+    #     # for display_name, node_id in procedural_nodes:
+    #     #     self.create_procedural_colour_node(display_name, node_id)
 
   
-        jacobianNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
-        if not jacobianNode:
-            slicer.mrmlScene.AddNode(jacobianNode)
-            #jacobianNode.SetAttribute("MyColourMaps", "1")  
+    #     jacobianNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
+    #     if not jacobianNode:
+    #         slicer.mrmlScene.AddNode(jacobianNode)
+    #         #jacobianNode.SetAttribute("MyColourMaps", "1")  
         
 
-        # # set default to ColdToHotRainbow
-        coldToHotNode = slicer.mrmlScene.GetFirstNodeByName("ColdToHotRainbow")
+    #     # # set default to ColdToHotRainbow
+    #     coldToHotNode = slicer.mrmlScene.GetFirstNodeByName("ColdToHotRainbow")
       
-        # Set it as the default selected node in the combo box
-        self.ui.colorMapSelector.setCurrentNode(coldToHotNode)
+    #     # Set it as the default selected node in the combo box
+    #     self.ui.colorMapSelector.setCurrentNode(coldToHotNode)
         
 
-        return colorNode
+    #     return colorNode
 
     import numpy as np
 
@@ -1529,6 +1495,40 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     #     return colorNode
 
+    # def createJacobianColorNode(self):
+    #     """
+    #     Create Jacobian colormap - only once, reuse if exists
+    #     """
+    #     existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
+        
+    #     if existingNode:
+    #         existingNode.SetAttribute("MyColourMaps", "1")
+    #         return existingNode
+
+    #     print("Creating new JacobianMap")
+        
+    #     colorNode = slicer.vtkMRMLColorTableNode()
+    #     colorNode.SetName("JacobianMap")
+    #     colorNode.SetAttribute("DisplayName", "Jacobian (Compression/Expansion)")
+    #     colorNode.SetAttribute("MyColourMaps", "1")
+    #     colorNode.SetTypeToUser()
+    #     colorNode.SetNumberOfColors(2)
+    #     colorNode.SetNoName("")
+    #     colorNode.SetSingletonTag("JacobianMap")
+
+        
+    #     # Set only two colors
+    #     colorNode.SetColor(0, 0.0, 0.0, 1.0, 1.0)  # Blue for contracting
+    #     colorNode.SetColorName(0, "Contracting")
+        
+    #     colorNode.SetColor(1, 1.0, 0.0, 0.0, 1.0)  # Red for expanding
+    #     colorNode.SetColorName(1, "Expanding")
+                
+    #     slicer.mrmlScene.AddNode(colorNode)
+
+    #     return colorNode
+
+
     def createJacobianColorNode(self):
         """
         Create Jacobian colormap - only once, reuse if exists
@@ -1559,9 +1559,16 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         colorNode.SetColorName(1, "Expanding")
                 
         slicer.mrmlScene.AddNode(colorNode)
-
+        
+        # Force lookup table initialization
+        lut = colorNode.GetLookupTable()
+        if lut:
+            lut.SetNumberOfTableValues(2)
+            lut.SetTableRange(0, 1)  # Set range to match 2 colors (0 and 1)
+            lut.ForceBuild()  # Force build instead of Build()
+            colorNode.Modified()  # Mark as modified to trigger updates
+        
         return colorNode
-
 
 
     def createInputSection(self):
@@ -2366,7 +2373,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         normalizedValue = self.ui.opacitySlider.value / 100
         internalDisplayNode.SetOpacity(normalizedValue)
         
-        slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(persistentDisplayNode)
+        #slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(persistentDisplayNode)
 
         # Do NOT set it as foreground of another volume to avoid cropping
         for sliceName in slicer.app.layoutManager().sliceViewNames():
@@ -2379,20 +2386,33 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         self.ui.enableHoverDisplayCheckbox.setChecked(True)
 
-        # # # remove title of volume node appearing on screen
-        # displayNode = selectedVolume.GetDisplayNode()
-        # if displayNode:
-        #     colorLegendNodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLColorLegendDisplayNode")
-        #     for i in range(colorLegendNodes.GetNumberOfItems()):
-        #         legendNode = colorLegendNodes.GetItemAsObject(i)
-        #         if legendNode.GetNodeReferenceID("primaryDisplay") == displayNode.GetID():
-        #             legendNode.SetTitleText(" ")
-        #             legendNode.SetVisibility(True)  # ensure the legend is still visible
-
-
+        
         # change legend to be color name instead of value if jacobian
+        # Remove any existing color legend display nodes for this display node
         displayNode = selectedVolume.GetDisplayNode()
         if displayNode:
+            # First, remove all existing legend nodes for this display
+            colorLegendNodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLColorLegendDisplayNode")
+            nodes_to_remove = []
+            for i in range(colorLegendNodes.GetNumberOfItems()):
+                legendNode = colorLegendNodes.GetItemAsObject(i)
+                if legendNode.GetNodeReferenceID("primaryDisplay") == displayNode.GetID():
+                    nodes_to_remove.append(legendNode)
+            
+            for node in nodes_to_remove:
+                slicer.mrmlScene.RemoveNode(node)
+            
+            # Now create a fresh legend node
+            slicer.modules.colors.logic().AddDefaultColorLegendDisplayNode(displayNode)
+            
+            
+            # for i in range(colorLegendNodes.GetNumberOfItems()):
+            #     legendNode = colorLegendNodes.GetItemAsObject(i)
+            #     if legendNode.GetNodeReferenceID("primaryDisplay") == displayNode.GetID():
+            #         # Clear all settings first
+            #         legendNode.SetVisibility(False)
+            #         legendNode.SetTitleText(" ")
+
             colorLegendNodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLColorLegendDisplayNode")
             for i in range(colorLegendNodes.GetNumberOfItems()):
                 legendNode = colorLegendNodes.GetItemAsObject(i)
@@ -2406,6 +2426,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                         legendNode.SetNumberOfLabels(0)  # Reset to default (auto)
                         legendNode.SetMaxNumberOfColors(256)  # Reset to full range
                         legendNode.SetUseColorNamesForLabels(False)  # Show numeric values
+                        legendNode.SetMaxNumberOfColors(256)  # Reset to full range
+                        legendNode.SetNumberOfLabels(5)  # Show 5 labels with numeric values
                         
                         # Set displacement settings
                         legendNode.SetSize(0.15, 0.5)
@@ -2415,6 +2437,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
            
                     elif flag == 1:  # jacobian
                         # Reset displacement settings and set jacobian-specific ones
+                        colorNode = displayNode.GetColorNode()
+                        if colorNode:
+                            colorNode.Modified()  # Force update
+                        
                         legendNode.SetUseColorNamesForLabels(True)
                         legendNode.SetNumberOfLabels(2)
                         legendNode.SetMaxNumberOfColors(2)
