@@ -1446,62 +1446,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #return first_node
 
     
-   
-    # def createJacobianColorNode(self):
-    #     """
-    #     Create Jacobian colormap - only once, reuse if exists
-    #     """
-    #     existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
-        
-    #     if existingNode:
-    #         existingNode.SetAttribute("MyColourMaps", "1")
-    #         return existingNode
 
-    #     print("Creating new JacobianMap")
-        
-    #     colorNode = slicer.vtkMRMLColorTableNode()
-    #     colorNode.SetName("JacobianMap")
-    #     colorNode.SetAttribute("DisplayName", "Jacobian (Compression/Expansion)")
-    #     colorNode.SetAttribute("MyColourMaps", "1")
-    #     colorNode.SetTypeToUser()
-    #     colorNode.SetNumberOfColors(256)
-    #     colorNode.SetNoName("")  # Empty string, or
-    #     colorNode.SetSingletonTag("JacobianMap")  # Set singleton tag
-
-        
-    #     # Set colors first
-    #     for i in range(256):
-    #         val = i / 255.0
-    #         if val < 0.5:  # Below neutral (compression - blue)
-    #             intensity = val * 2.0
-    #             r, g, b = 0.0, 0.0, 0.6 + intensity * 0.4
-    #             #colorNode.SetColorName(i, "Contracting")
-
-    #         elif val > 0.5:  # Above neutral (expansion - red)
-    #             intensity = (val - 0.5) * 2.0
-    #             r, g, b = 0.6 + intensity * 0.4, 0.0, 0.0
-    #             #colorNode.SetColorName(i, "Expansion")
-
-    #         else:  # Neutral (white)
-    #             r, g, b = 1.0, 1.0, 1.0
-    #             #colorNode.SetColorName(i, "Neutral")
-
-    #         #colorNode.SetColor(i, "")
-    #         colorNode.SetColor(i, r, g, b, 1.0)
-    #         colorNode.SetColorName(i, "")
-
-    #         #THIS IS SO NECESSARY: 
-
-    #     # lut = colorNode.GetLookupTable()
-    #     # if lut:
-    #     #     lut.SetVectorModeToComponent()  # Example: set properties
-
-    #     colorNode.SetColorName(64, "Contracting")
-    #     colorNode.SetColorName(191, "Expanding")
-                
-    #     slicer.mrmlScene.AddNode(colorNode)
-
-    #     return colorNode
 
     def createJacobianColorNode(self):
         """
@@ -1520,61 +1465,24 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         colorNode.SetAttribute("DisplayName", "Jacobian (Compression/Expansion)")
         colorNode.SetAttribute("MyColourMaps", "1")
         colorNode.SetTypeToUser()
-        colorNode.SetNumberOfColors(2)
+        colorNode.SetNumberOfColors(3)
         colorNode.SetNoName("")
         colorNode.SetSingletonTag("JacobianMap")
 
         
         # Set only two colors
-        colorNode.SetColor(0, 0.0, 0.0, 1.0, 1.0)  # Blue for contracting
+        colorNode.SetColor(0, 0.0, 0.0, 1.0, 1.0)  # Blue for contracting, index 0
         colorNode.SetColorName(0, "Contracting")
+
+        colorNode.SetColor(1, 1.0, 1.0, 1.0, 1.0)  # White for no change, index 1
+        colorNode.SetColorName(1, "No Change")
         
-        colorNode.SetColor(1, 1.0, 0.0, 0.0, 1.0)  # Red for expanding
-        colorNode.SetColorName(1, "Expanding")
+        colorNode.SetColor(2, 1.0, 0.0, 0.0, 1.0)  # Red for expanding, index 2
+        colorNode.SetColorName(2, "Expanding")
                 
         slicer.mrmlScene.AddNode(colorNode)
 
         return colorNode
-
-
-    # def createJacobianColorNode(self):
-    #     """
-    #     Create Jacobian colormap - discrete blue (contraction) / red (expansion)
-    #     """
-    #     existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
-        
-    #     if existingNode:
-    #         existingNode.SetAttribute("MyColourMaps", "1")
-    #         return existingNode
-
-    #     print("Creating new JacobianMap")
-        
-    #     colorNode = slicer.vtkMRMLColorTableNode()
-    #     colorNode.SetName("JacobianMap")
-    #     colorNode.SetAttribute("DisplayName", "Jacobian (Compression/Expansion)")
-    #     colorNode.SetAttribute("MyColourMaps", "1")
-    #     colorNode.SetTypeToUser()
-        
-    #     # Use 256 colors but make it binary-ish
-    #     colorNode.SetNumberOfColors(256)
-        
-    #     # Set colors: 0-127 = blue (contraction), 128-255 = red (expansion)
-    #     for i in range(256):
-    #         if i < 128:
-    #             # Blue for contraction (negative percentages)
-    #             colorNode.SetColor(i, 0.0, 0.0, 1.0, 1.0)
-    #             colorNode.SetColorName(i, "Contracting")
-    #         else:
-    #             # Red for expansion (positive percentages)
-    #             colorNode.SetColor(i, 1.0, 0.0, 0.0, 1.0)
-    #             colorNode.SetColorName(i, "Expanding")
-        
-    #     colorNode.SetNoName("")
-    #     slicer.mrmlScene.AddNode(colorNode)
-        
-    #     return colorNode
-
-
 
 
     
@@ -2445,8 +2353,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                             colorNode.Modified()  # Force update
                         
                         legendNode.SetUseColorNamesForLabels(True)
-                        legendNode.SetNumberOfLabels(2)
-                        legendNode.SetMaxNumberOfColors(2)
+                        legendNode.SetNumberOfLabels(3)
+                        legendNode.SetMaxNumberOfColors(3)
                         
                         #legendNode.SetTitleText("Jacobian Determinant")
                         legendNode.SetTitleText("")
@@ -3680,12 +3588,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         img.GetFieldData().AddArray(flagArray)
         outputVolume.Modified()
 
-        # # Step 7: Display setup
-        # if not outputVolume.GetDisplayNode():
-        #     outputVolume.CreateDefaultDisplayNodes()
 
-        # displayNode = outputVolume.GetDisplayNode()
-        # displayNode.AutoWindowLevelOff()
 
          # Step 7: Display setup
         if not outputVolume.GetDisplayNode():
@@ -3706,13 +3609,16 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
 
         displayNode.AutoWindowLevelOff()
 
+
+
+
         #Set threshold at 0 to split contraction (negative) from expansion (positive)
         displayNode.SetThreshold(0.0, True)  # Enable threshold at 0
         displayNode.SetLowerThreshold(0.0)
         displayNode.SetUpperThreshold(0.0)
 
         # Adjust window/level so 0 is the dividing point
-        displayNode.SetWindowLevel(100, 0)
+        # displayNode.SetWindowLevel(100, 0)
 
         # Set window/level for percentage range
         # For example, -50% to +50% range
@@ -3724,24 +3630,31 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         # displayNode.SetLevel(2.5)
         # array = sitk.GetArrayFromImage(jacDet)
         array = sitk.GetArrayFromImage(jacPercent)
-        # minVal, maxVal = float(array.min()), float(array.max())
-        # displayNode.SetWindow(maxVal - minVal)
-        # displayNode.SetLevel((maxVal + minVal) / 2)
-        
+        minVal = float(array.min())
+        maxVal = float(array.max())
 
+        window = maxVal - minVal
+        level = (maxVal + minVal) / 2.0
+        displayNode.SetWindowLevel(window, level)
 
-            #colorNode = slicer.util.getNode("DefaultColourMap")
+        if colorNode:
+            lookupTable = colorNode.GetLookupTable()
+            if lookupTable:
+                # Map color indices to data values
+                lookupTable.SetRange(minVal, maxVal)
+                lookupTable.Build()       
 
 
         # Step 8: Store in UI and parameter node
         #self.ui.jacobianMagnitudeVolume.setCurrentNode(outputVolume)
         #self._parameterNode().SetNodeReferenceID("jacobianMagnitudeVolume", outputVolume.GetID())
 
-        # Just before return:
-        testArray = slicer.util.arrayFromVolume(outputVolume)
-        print(f"✓ Volume '{outputVolume.GetName()}' data range: [{testArray.min():.2f}, {testArray.max():.2f}]")
-        if testArray.min() >= 0:
-            print("⚠ WARNING: No negative values found! Data might not be percentages.")
+        # # Just before return:
+        # testArray = slicer.util.arrayFromVolume(outputVolume)
+        # print(f"✓ Volume '{outputVolume.GetName()}' data range: [{testArray.min():.2f}, {testArray.max():.2f}]")
+        # if testArray.min() >= 0:
+        #     print("⚠ WARNING: No negative values found! Data might not be percentages.")
+
         return outputVolume
 
 
