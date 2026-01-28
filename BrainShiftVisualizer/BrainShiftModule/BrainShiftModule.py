@@ -352,15 +352,27 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.opacitySlider.valueChanged.connect(self.onOpacityChanged)
         self.onOpacityChanged(self.ui.opacitySlider.value)
 
+        #track whether it's the first time for each flag type (first time with flag=0, first time with flag=1) for colour 
+        self.firstTimeFlag0 = True  # First time loading a volume with flag=0
+        self.firstTimeFlag1 = True  # First time loading a volume with flag=1
+        self.lastLoadedFlag = None
+
+        # incremental displacement slider
+        self.ui.incrementalSlider.valueChanged.connect(self.onIncrementalChanged)
+        self.ui.incrementalSlider.setMinimum(10)
+        self.ui.incrementalSlider.setMaximum(100)
+        self.ui.incrementalSlider.setSingleStep(10)
+        self.ui.incrementalSlider.setPageStep(10)
+        self.ui.incrementalSlider.setTickInterval(10)
+        self.ui.incrementalSlider.setTickPosition(qt.QSlider.TicksBelow)
+        # self.onIncrementalChanged(self.ui.incrementalSlider.value)
+
         #Euclidian
         self.watchActiveLabel()
         self.ui.selectedLandmarks.setReadOnly(True)
         self.ui.landmarkEuclidianDistance.setReadOnly(True)
 
-        #track whether it's the first time for each flag type (first time with flag=0, first time with flag=1) for colour 
-        self.firstTimeFlag0 = True  # First time loading a volume with flag=0
-        self.firstTimeFlag1 = True  # First time loading a volume with flag=1
-        self.lastLoadedFlag = None
+
 
         # connect displacement button WTIH ICON
         self.ui.loadDisplacementButton.connect(
@@ -1107,6 +1119,13 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         opacityLayout.addWidget(self.ui.opacityValue)
         vizLayout.addRow("Opacity:", opacityLayout)
 
+        # Incremental with better layout
+        incrementalLayout = qt.QHBoxLayout()
+        incrementalLayout.addWidget(self.ui.incrementalSlider, 1)  # Stretch factor
+        incrementalLayout.addSpacing(10)
+        incrementalLayout.addWidget(self.ui.incrementalSlider)
+        vizLayout.addRow("Increment:", incrementalLayout)
+
         # Threshold with labels
         thresLayout = qt.QVBoxLayout()
         thresLayout.setSpacing(5)
@@ -1203,6 +1222,35 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         normalizedValue = value/100
         slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
         self.ui.opacityValue.setText(f"{value:.0f}%")
+
+
+    def onIncrementalChanged(self, value: int) -> None:
+        scale = value / 100.0
+
+        if not hasattr(self, "displacementMagnitudeVolume"):
+            return
+
+        vol = self.displacementMagnitudeVolume
+        if not vol:
+            return
+
+        imageData = vol.GetImageData()
+        if not imageData:
+            return
+
+        scalars = imageData.GetPointData().GetScalars()
+        if not scalars:
+            return
+
+        from vtk.util.numpy_support import vtk_to_numpy
+        arr = vtk_to_numpy(scalars)
+
+        # Scale from original (not cumulatively!)
+        arr[:] = self._fullDisplacementArray * scale
+
+        imageData.Modified()
+        vol.Modified()
+                
 
 
     def onToggleUsDisplay(self) -> None:
@@ -1734,7 +1782,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             displacementVolume = self.logic.computeDisplacementMagnitude(
                 referenceVolume=self._parameterNode.referenceVolume,
                 transformNode=self._parameterNode.transformNode,
-                defaultColourMap=self.defaultColorNodeID
+                defaultColourMap=self.defaultColorNodeID,
+                scale=1.0  # Explicitly use full displacement
             )
 
             # Create Jacobian  (vector volume)
@@ -1784,13 +1833,17 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.loadedTransformVolume.setCurrentNode(displacementVolume)
             self.onLoadDisplacementVolume(flag=0)
 
-        
-            # colorNode = self.ui.colorMapSelector.currentNode()
-            # if colorNode and self._parameterNode.displacementMagnitudeVolume:
-            #     print("In 490!!!")
-            #     displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
-            #     if displayNode:
-            #         displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            if hasattr(self.ui, 'incrementalSlider'):
+                self.ui.incrementalSlider.setValue(100)
+                self.incrementalDisplacementVolume = displacementVolume
+
+
+            # for incremental volume code 
+            self.displacementMagnitudeVolume = displacementVolume
+            imageData = displacementVolume.GetImageData()
+            scalars = imageData.GetPointData().GetScalars()
+            self._fullDisplacementArray = vtk_to_numpy(scalars).copy()
+
 
 
 
@@ -3106,10 +3159,11 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
 
 
     def computeDisplacementMagnitude(self,
-                                 referenceVolume: vtkMRMLScalarVolumeNode,
-                                 transformNode:   vtkMRMLTransformNode,
-                                 defaultColourMap: vtkMRMLColorTableNode
-                                 ) -> vtkMRMLScalarVolumeNode:
+                                referenceVolume: vtkMRMLScalarVolumeNode,
+                                transformNode:   vtkMRMLTransformNode,
+                                defaultColourMap: vtkMRMLColorTableNode,
+                                scale: float = 1.0
+                                ) -> vtkMRMLScalarVolumeNode:
         """
         Compute voxel-wise displacement magnitude from a BSpline transform.
         Returns a scalar volume node.
@@ -3160,14 +3214,22 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
             refImage.GetDirection()
         )
 
+        if scale != 1.0:
+            dispField = sitk.Multiply(dispField, scale)
+
         # Compute magnitude image
         dispMag = sitk.VectorMagnitude(dispField)
 
         # Push back to Slicer
+        volumeName = referenceVolume.GetName() + "_displacementMagnitude"
+        if scale != 1.0:
+            volumeName = f"{referenceVolume.GetName()}_displacement_{int(scale*100)}pct"
+            
         outputVolume = slicer.mrmlScene.AddNewNodeByClass(
             "vtkMRMLScalarVolumeNode",
-            referenceVolume.GetName() + "_displacementMagnitude"
+            volumeName
         )
+
         sitkUtils.PushVolumeToSlicer(dispMag, outputVolume)
 
         # add flag
