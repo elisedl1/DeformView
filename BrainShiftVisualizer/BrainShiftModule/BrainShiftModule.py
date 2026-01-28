@@ -1,11 +1,9 @@
 import logging
 import os
 from typing import Annotated, Optional
-
+import numpy as np
 import vtk
-
 import ctk 
-
 import slicer
 from slicer.i18n import tr as _
 from slicer.i18n import translate
@@ -15,17 +13,21 @@ from slicer.parameterNodeWrapper import (
     parameterNodeWrapper,
     WithinRange,
 )
-
 from slicer import vtkMRMLScalarVolumeNode
 from slicer import vtkMRMLTransformNode
 from slicer import vtkMRMLColorTableNode
 from slicer import vtkMRMLVectorVolumeNode
 import vtk.util.numpy_support
 import qt
-
 import re
 import os 
 import tempfile
+import traceback
+from vtk.util.numpy_support import vtk_to_numpy
+import SimpleITK as sitk
+import sitkUtils
+import logging
+
 
 #
 # BrainShiftModule
@@ -359,19 +361,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.firstTimeFlag0 = True  # First time loading a volume with flag=0
         self.firstTimeFlag1 = True  # First time loading a volume with flag=1
         self.lastLoadedFlag = None
-        # # If there's already a volume loaded, reset its color map to default
-        # if self.ui.loadedTransformVolume.currentNode():
-        #     volumeNode = self.ui.loadedTransformVolume.currentNode()
-        #     dispNode = volumeNode.GetDisplayNode()  # Gets the UNIQUE display node for this volume
-        #     if dispNode:
-        #         # Get the default color node by name
-        #         defaultColorNode = slicer.mrmlScene.GetFirstNodeByName(self.defaultColorNodeID)
-        #         if defaultColorNode:
-        #             # Set it on THIS volume's display node (won't affect other volumes)
-        #             dispNode.SetAndObserveColorNodeID(defaultColorNode.GetID())
-        #             # Update the selector to match
-        #             self.ui.colorMapSelector.setCurrentNode(defaultColorNode)
-        #             print(f"Reset color map to default: {defaultColorNode.GetName()}")
 
         # connect displacement button WTIH ICON
         self.ui.loadDisplacementButton.connect(
@@ -424,20 +413,18 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-    import numpy as np
 
     def enableVTKErrorTracking(self):
         """Enable detailed VTK error tracking with stack traces"""
-        import vtk
         
         # Create an error observer
         def errorCallback(obj, event):
-            import traceback
-            print("\n" + "="*60)
-            print("VTK ERROR DETECTED:")
-            print("="*60)
+            
+            # print("\n" + "="*60)
+            # print("VTK ERROR DETECTED:")
+            # print("="*60)
             traceback.print_stack()
-            print("="*60 + "\n")
+            # print("="*60 + "\n")
         
         # Add observer to VTK output window
         errorObserver = vtk.vtkFileOutputWindow()
@@ -475,11 +462,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     colorNode = slicer.mrmlScene.GetFirstNodeByName(colorName)
                     if colorNode:
                         dispNode.SetAndObserveColorNodeID(colorNode.GetID())
-                    # else:
-                    #     print(f"Warning: Could not find color node '{colorName}', using default Grey")
-                    #     defaultColorNode = slicer.mrmlScene.GetFirstNodeByName("Grey")
-                    #     if defaultColorNode:
-                    #         dispNode.SetAndObserveColorNodeID(defaultColorNode.GetID())
+
 
 
    
@@ -568,14 +551,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.colorMapSelector.addAttribute("vtkMRMLProceduralColorNode", "MyColourMaps", "1")
         self.ui.colorMapSelector.addAttribute("vtkMRMLPETColorNode", "MyColourMaps", "1")
         self.ui.colorMapSelector.addAttribute("vtkMRMLColorTableNodeFile", "MyColourMaps", "1")
-        #self.ui.colorMapSelector.AddDefaultFileNodes()
-        #slicer.util.AddDefaultFileNodes()
-        #colorLogic = slicer.modules.colors.logic()
-        # The color nodes are already in the scene
 
-        # allColorNodes = slicer.util.getNodesByClass('vtkMRMLColorTableNode')
-        # for node in allColorNodes:
-        #     print(f"{node.GetID()} - {node.GetName()}")
       
         # Create Jacobian color node
         jacobianColorNode = self.createJacobianColorNode()
@@ -611,12 +587,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # else:
         proxyModel = self.ui.colorMapSelector.sortFilterProxyModel()
 
-        #     existing.SetAttribute("MyColourMaps", "1")
-        #     print(f"Colormap {name_str} already exists, skipping")
-    
-        # for name_str, type_str in nodes_to_add:
-        #     self.cleanupCorruptedColormaps(name_str, type_str)
-    
 
         #self.verify_colormap("Viridis")
           # Set default to Rainbow
@@ -634,8 +604,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def diagnose_colormap_application(self, volumeNode):
         """
         Diagnose why the colormap isn't showing correctly
-        """
-        print("\n=== COLORMAP DIAGNOSTIC ===")
+        # """
+        # print("\n=== COLORMAP DIAGNOSTIC ===")
         
         if not volumeNode:
             print("No volume node!")
@@ -648,8 +618,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if imageData:
             scalarRange = imageData.GetScalarRange()
             numComponents = imageData.GetNumberOfScalarComponents()
-            print(f"  Scalar range: {scalarRange}")
-            print(f"  Components: {numComponents}")
+            # print(f"  Scalar range: {scalarRange}")
+            # print(f"  Components: {numComponents}")
         
         # Check display node
         displayNode = volumeNode.GetDisplayNode()
@@ -688,173 +658,25 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Check window/level settings
         window = displayNode.GetWindow()
         level = displayNode.GetLevel()
-        print(f"  Window: {window}")
-        print(f"  Level: {level}")
+        # print(f"  Window: {window}")
+        # print(f"  Level: {level}")
         
         # Check if auto window/level is on
         autoWL = displayNode.GetAutoWindowLevel()
-        print(f"  Auto window/level: {autoWL}")
+        # print(f"  Auto window/level: {autoWL}")
         
         # Check scalar range on display node
         displayScalarRange = displayNode.GetScalarRange()
-        print(f"  Display scalar range: {displayScalarRange}")
+        # print(f"  Display scalar range: {displayScalarRange}")
         
         # Check color mapping
         colorMapping = displayNode.GetScalarRangeFlag()
-        print(f"  Scalar range flag: {colorMapping}")
-        print(f"    0 = Manual, 1 = Use color node scalar range, 2 = Use data scalar range")
+        # print(f"  Scalar range flag: {colorMapping}")
+        # print(f"    0 = Manual, 1 = Use color node scalar range, 2 = Use data scalar range")
         
-        print("=== END DIAGNOSTIC ===\n")
+        # print("=== END DIAGNOSTIC ===\n")
 
 
-    # def create_colour_node_from_matplotlib(self, name_str, cmap_name, num_colors=256):
-    #     """
-    #     Create a properly configured 3D Slicer color node from matplotlib colormap.
-    #     """
-    #     try:
-    #         import matplotlib
-    #         import matplotlib.pyplot as plt
-    #         import numpy as np
-    #     except ImportError as e:
-    #         print(f"Matplotlib not available: {e}")
-    #         return None
-        
-    #     # Remove existing node if present
-    #     #node = slicer.mrmlScene.GetFirstNodeByName(name_str)
-    #     existing_node = slicer.mrmlScene.GetFirstNodeByName(name_str)
-    #     if existing_node:
-    #         #print(f"Matplotlib colormap {name_str} already exists")
-    #         return existing_node
-    #     # if node:
-    #     #     slicer.mrmlScene.RemoveNode(node)
-        
-    #     try:
-    #         mpl_cmap = matplotlib.colormaps[cmap_name].resampled(num_colors)
-    #     except:
-    #         mpl_cmap = plt.cm.get_cmap(cmap_name, num_colors)
-        
-    #     # Get RGBA values from matplotlib
-    #     colors_rgba = mpl_cmap(np.linspace(0, 1, num_colors))
-        
-    #     # Use ColorTableNode
-    #     colorNode = slicer.vtkMRMLColorTableNode()
-    #     colorNode.SetTypeToUser()
-    #     colorNode.SetNumberOfColors(num_colors)
-    #     colorNode.SetName(name_str)
-    #     #colorNode.SetAttribute("Category", "Matplotlib")
-        
-    #     # CRITICAL FIX: Set the range to match how Slicer maps values
-    #     # Slicer typically uses the actual data range, not 0-255
-    #     lookupTable = colorNode.GetLookupTable()
-    #     lookupTable.SetNumberOfTableValues(num_colors)
-        
-    #     # Use normalized range (0.0 to 1.0) instead of (0 to 255)
-    #     # This matches how other Slicer colormaps work
-    #     lookupTable.SetRange(0.0, 255.0)
-    #     lookupTable.SetRampToLinear()
-        
-    #     # Set each color
-    #     for i, (r, g, b, a) in enumerate(colors_rgba):
-    #         colorNode.SetColor(i, f"{cmap_name}_{i}", r, g, b, a)
-    #         # Map to normalized range
-    #         normalized_value = i / (num_colors - 1.0)
-    #         lookupTable.SetTableValue(i, r, g, b, a)
-        
-    #     # Build and configure the lookup table
-    #     lookupTable.Build()
-        
-    #     # IMPORTANT: Set these properties to match Slicer's behavior
-    #     colorNode.SetNamesInitialised(True)
-    #     colorNode.SaveWithSceneOff()  # Don't save with scene (like built-in colormaps)
-        
-    #     # Add to scene
-    #     slicer.mrmlScene.AddNode(colorNode)
-    #     colorNode.SetAttribute("MyColourMaps", "1")
-        
-    #     print(f"Created matplotlib colormap: {name_str} with {num_colors} colors")
-    #     print(f"  ✓ Lookup table validated: {num_colors} entries")
-    #     print(f"  Range: {lookupTable.GetRange()}")
-    #   # #and then add custom colour maps like this:
-        
-    #     jacobianNode = self.createJacobianColorNode()
-    #     #self.ui.colorMapSelector.addAttribute(f"{jacobianNode}", "MyColourMaps", "1")
-
-
-    #     nodes_to_add = [("FullRainbow", "FullRainbow"),
-    #                      ("Iron", "Iron"),
-    #                     ("Grey", "Grey"),
-    #                     #("Plasma", "Plasma"),
-    #                     #("Cividis", "Cividis"),
-    #                      # ("Inferno", "Inferno"),
-    #                       # ("JacobianMap", "UserDefined"),
-    #                        #("Viridis", "Viridis"),
-    #                        ("Rainbow", "Rainbow"),
-    #                        #("FullRainbow", "FullRainbow")
-    #                        ("Ocean", "Ocean"),
-    #                        ("InvertedGrey", "InvGrey"),
-    #                         ("FMRI", "FMRI"),
-    #                        ("Yellow", "Yellow"),
-    #                        ("Warm1", "Warm1"),
-    #                        #("warmShade1", "WarmShade1"),
-    #                        #("CoolShade1", "CoolShade1"),
-    #                        #("DivergingBlueRed","DivergingBlueRed" ),
-    #                        #("Magma","Magma" ),
-    #                        #("Isodose_ColorTable_Default", "Isodose_ColorTable_Default"),
-    #                        # ("Isodose_ColorTable_Relative", "Isodose_ColorTable_Relative"),
-    #                        # ("JacobianMap", "Custom")
-    #        ]
-    #                        #("CoolToWarm", "CoolToWarm")]
-        
-    #     for number in nodes_to_add:
-    #         #print("adding node:", number)
-    #         name_str, type_str = number
-    #         new_node = self.create_colour_node(name_str, type_str)
-    #         #self.ui.colorMapSelector.setCurrentNode(new_node)
-
-    #     # nodes_to_add_pro = [ ("HotToCold", "HotToColdRainbow"),
-    #     #                 ("Plasma", "Plasma"),
-    #     #                 ("Cividis", "Cividis"),
-    #     #                   ("Inferno", "Inferno"),
-    #     #                    ("Viridis", "Viridis"),
-    #     #                    ("DivergingBlueRed","DivergingBlueRed" ),
-    #     #                    ("Magma","Magma" ),
-    #     #                    ("Isodose_ColorTable_Default", "Isodose_ColorTable_Default"),
-    #     #                    ("Isodose_ColorTable_Relative", "Isodose_ColorTable_Relative")
-    #     #                   ]
-  
-    #     # for number in nodes_to_add_pro:
-    #     #     #print("adding node:", number)
-    #     #     name_str, type_str = number
-    #     #     new_node = self.create_procedural_colour_node(name_str)
-    #         #self.ui.c
-    #    # procedural_nodes = [
-    #     # ("Viridis", "Viridis"),
-    #     # ("Plasma", "Plasma"),
-    #     # ("Inferno", "Inferno"),
-    #     # ("Magma", "Magma"),
-    #     # ("Cividis", "Cividis"),
-    #     #  ]
-    
-    #     # for display_name, node_id in procedural_nodes:
-    #     #     self.create_procedural_colour_node(display_name, node_id)
-
-  
-    #     jacobianNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
-    #     if not jacobianNode:
-    #         slicer.mrmlScene.AddNode(jacobianNode)
-    #         #jacobianNode.SetAttribute("MyColourMaps", "1")  
-        
-
-    #     # # set default to ColdToHotRainbow
-    #     coldToHotNode = slicer.mrmlScene.GetFirstNodeByName("ColdToHotRainbow")
-      
-    #     # Set it as the default selected node in the combo box
-    #     self.ui.colorMapSelector.setCurrentNode(coldToHotNode)
-        
-
-    #     return colorNode
-
-    import numpy as np
 
     def verify_colormap(self, colorNodeName):
         """
@@ -1210,8 +1032,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         processingLayout.addRow(" ", checkboxLayout)
 
 
-
-        processingLayout.addRow("", loadButtonsLayout)
         
 
         # === SECTION 3: LANDMARKS ===
@@ -1406,10 +1226,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             node = allNodes.GetNextItemAsObject()
             if i == 0:
                 first_node = node
-                print(f"Keeping {nodeName} (ID: {node.GetID()})")
+                # print(f"Keeping {nodeName} (ID: {node.GetID()})")
             else:
                 nodes_to_remove.append(node)
-                print(f"Will remove duplicate {nodeName} (ID: {node.GetID()})")
+                # print(f"Will remove duplicate {nodeName} (ID: {node.GetID()})")
         
         # Remove duplicates
         for node in nodes_to_remove:
@@ -1437,7 +1257,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         for i in range(allNodes.GetNumberOfItems()):
             node = allNodes.GetNextItemAsObject()
             nodes_to_remove.append(node)
-            print(f"Will remove duplicate {nodeName} (ID: {node.GetID()})")
+            # print(f"Will remove duplicate {nodeName} (ID: {node.GetID()})")
         
         # Remove duplicates
         for node in nodes_to_remove:
@@ -1458,7 +1278,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             existingNode.SetAttribute("MyColourMaps", "1")
             return existingNode
 
-        print("Creating new JacobianMap")
+        # print("Creating new JacobianMap")
         
         colorNode = slicer.vtkMRMLColorTableNode()
         colorNode.SetName("JacobianMap")
@@ -1575,30 +1395,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         crosshairNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLCrosshairNode')
         if crosshairNode:
             crosshairNode.RemoveAllObservers()
-            print("Removed all crosshair observers")
-
-        # First, reset any volumes using custom color maps back to default
-        # volumeNodes = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
-        # for volNode in volumeNodes:
-        #     displayNode = volNode.GetDisplayNode()
-        #     if displayNode:
-        #         colorNode = displayNode.GetColorNode()
-        #         if colorNode and colorNode.GetAttribute("MyColourMaps") == "1":
-        #             # Reset to default grayscale
-        #             displayNode.SetAndObserveColorNodeID("vtkMRMLColorTableNodeGrey")
-        
-        # # Now safe to remove custom color nodes
-        # nodesToRemove = []
-        # numNodes = slicer.mrmlScene.GetNumberOfNodes()
-        # for i in range(numNodes):
-        #     node = slicer.mrmlScene.GetNthNode(i)
-        #     if node and node.GetAttribute("MyColourMaps") == "1":
-        #         nodesToRemove.append(node)
-        
-        # for node in nodesToRemove:
-        #     slicer.mrmlScene.RemoveNode(node)
-        
-        # print(f"Cleaned up {len(nodesToRemove)} color node(s)")
+            # print("Removed all crosshair observers")
 
         
 
@@ -2411,7 +2208,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         if hasattr(self, "lastLoadedVolumeID") and hasattr(self, "lastLoadedFlag"):
             if self.lastLoadedVolumeID == selectedVolume.GetID() and self.lastLoadedFlag == flag:
-                print("Volume already fully loaded — skipping display setup")
+                # print("Volume already fully loaded — skipping display setup")
                 return
 
         # Store currently loaded volume ID and flag
@@ -3064,74 +2861,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.enableDisplacementVisualizationCheckbox.blockSignals(False)
 
         
-    
-    # def getOrCreateMouseLabelNode(self):
-    #     #self.ui.LandmarkSelectorComboBox.addItem(node.GetName()) #stores node name (string)
-    #     #--- We CAN'T hard code the node name because we need two - one for each map - depending on whichever is loaded --- 
-    #     # node = slicer.mrmlScene.GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
-        
-    #     # volumeNode = self.ui.loadedTransformVolume.currentNode()
-
-    #     # if not volumeNode:
-    #     #     return None
-        
-    #     # # Create unique name using volume name (sanitize special characters)
-    #     # volumeName = volumeNode.GetName().replace(" ", "_")
-    #     # labelNodeName = f"BrainShiftModule_MouseValueLabel_{volumeName}"
-
-    #     self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
-
-        
-    #     node = slicer.mrmlScene.GetFirstNodeByName(labelNodeName)
-
-    #     if node is None:
-    #         node = slicer.mrmlScene.AddNewNodeByClass(
-    #             "vtkMRMLMarkupsFiducialNode",
-    #            labelNodeName
-    #         )
-    #         node.AddControlPoint(0, 0, 0)
-    #         node.SetLocked(True)
-    #         node.SetMarkupLabelFormat("{label}")
-    #         node.GetDisplayNode().SetVisibility2D(False)
-    #         node.GetDisplayNode().SetVisibility3D(False)
-    #         node.SetNthControlPointLabel(0, "")
-    #         node.GetDisplayNode().SetColor([0.0, 0.0, 0.0])
-    #         node.GetDisplayNode().SetSelectedColor([0.0, 0.0, 0.0])
-    #         node.GetDisplayNode().GetTextProperty().SetColor(0.0, 0.0, 0.0)
-    #     return node
-
-
-
-    # def getLandmarkLabel(self):
-    #     default_text = "Initial Text"
-    
-    #     # text1 = qt.QInputDialog.getText(self.line_edit, "Please name the first landmark file (derived from the source volume)", "Name: ")
-    #     # text2 = qt.QInputDialog.getText(self.line_edit, "Please name the second landmark file (derived from the moving volume)", "Name: ")
-
-    #     text1, ok1 = qt.QInputDialog.getText(
-    #         self,  # parent widget
-    #         "Please name the first landmark file (derived from the source volume)",
-    #         "Name:"
-    #     )
-
-    #     text2, ok2 = qt.QInputDialog.getText(
-    #         self,
-    #         "Please name the second landmark file (derived from the moving volume)",
-    #         "Name:"
-    #     )
-    #     #print(f"User input: '{text}', OK pressed: ")
-
-    #     #print(type(ok))
-    #     if text1:
-    #         self.line_edit.setText(text1)
-    #     if text2:
-    #         self.line_edit.setText(text2)
-
-    #     else:
-    #         raise Exception("could not rename landmark file")
-    #     print("Renamed to: ", text1)
-    #     return text1, text2
-
 
 
     def getLandmarkLabel(self):
@@ -3166,35 +2895,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # print("Renamed to:", text1, text2)
         return text1, text2
 
-    # def getLandmarkLabel(self):
-    #     default_text = "Initial Text"
-    
-    #     # text1 = qt.QInputDialog.getText(self.line_edit, "Please name the first landmark file (derived from the source volume)", "Name: ")
-    #     # text2 = qt.QInputDialog.getText(self.line_edit, "Please name the second landmark file (derived from the moving volume)", "Name: ")
-
-    #     text1, ok1 = qt.QInputDialog.getText(
-    #         self,  # parent widget
-    #         "Please name the first landmark file (derived from the source volume)",
-    #         "Name:"
-    #     )
-
-    #     text2, ok2 = qt.QInputDialog.getText(
-    #         self,
-    #         "Please name the second landmark file (derived from the moving volume)",
-    #         "Name:"
-    #     )
-    #     #print(f"User input: '{text}', OK pressed: ")
-
-    #     #print(type(ok))
-    #     if text1:
-    #         self.line_edit.setText(text1)
-    #     if text2:
-    #         self.line_edit.setText(text2)
-
-    #     else:
-    #         raise Exception("could not rename landmark file")
-    #     print("Renamed to: ", text1)
-    #     return text1, text2
 
     def getLandmarkLabel(self):
         parent = slicer.util.mainWindow()  # safe parent for dialogs in Slicer
@@ -3312,8 +3012,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
     
     def countUniqueValues(self, volumeNode: vtkMRMLScalarVolumeNode):
 
-        import numpy as np
-        from vtk.util.numpy_support import vtk_to_numpy
+        
 
         imageData = volumeNode.GetImageData()
         if imageData is None:
@@ -3381,8 +3080,6 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
     
 
     def read_tag_file(self, filepath):
-        import numpy as np
-        import re
 
         """Parse the tag file robustly and return two numpy arrays of points."""
         source_points = []
@@ -3417,9 +3114,6 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         Compute voxel-wise displacement magnitude from a BSpline transform.
         Returns a scalar volume node.
         """
-
-        import SimpleITK as sitk
-        import sitkUtils
 
         if not referenceVolume:
             raise ValueError("Reference volume is invalid")
@@ -3524,11 +3218,6 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
                                 transformNode: vtkMRMLTransformNode,
                                 defaultColourMap: vtkMRMLColorTableNode
                                 ) -> vtkMRMLScalarVolumeNode:
-        import slicer
-        import vtk
-        import SimpleITK as sitk
-        import sitkUtils
-        import numpy as np
 
         refImage = sitkUtils.PullVolumeFromSlicer(referenceVolume)
 
@@ -3665,12 +3354,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         Extracts the non-zero region of a volume and displays its surface wireframe
         as a non-destructive 3D overlay using a vtkModelNode.
         """
-        import slicer
-        import vtk
-        import numpy as np
-        import SimpleITK as sitk
-        import sitkUtils
-        import logging
+
         logging.basicConfig(level=logging.DEBUG)
         logger = logging.getLogger(__name__)
 
