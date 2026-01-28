@@ -687,23 +687,23 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             print(f"Color node '{colorNodeName}' not found")
             return False
         
-        print(f"\n=== Verifying {colorNodeName} ===")
-        print(f"Type: {colorNode.GetClassName()}")
-        print(f"Number of colors: {colorNode.GetNumberOfColors()}")
+        # print(f"\n=== Verifying {colorNodeName} ===")
+        # print(f"Type: {colorNode.GetClassName()}")
+        # print(f"Number of colors: {colorNode.GetNumberOfColors()}")
         
         # Check if it has a lookup table
         if hasattr(colorNode, 'GetLookupTable'):
             lut = colorNode.GetLookupTable()
             if lut:
-                print(f"Lookup table: {lut.GetNumberOfTableValues()} values")
-                print(f"Range: {lut.GetRange()}")
-                print("✓ Valid lookup table")
+                # print(f"Lookup table: {lut.GetNumberOfTableValues()} values")
+                # print(f"Range: {lut.GetRange()}")
+                print("Valid lookup table")
                 return True
             else:
-                print("✗ No lookup table!")
+                print("No lookup table!")
                 return False
         else:
-            print("✗ No GetLookupTable method")
+            print("No GetLookupTable method")
             return False
 
 # Test it:
@@ -2012,15 +2012,15 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         numDisplayNodes = selectedVolume.GetNumberOfDisplayNodes() 
         
         currentColorNode = internalDisplayNode.GetColorNode()
-        print("currentColorNode", currentColorNode)
+        # print("currentColorNode", currentColorNode)
         # print(f"Number of display nodes: {numDisplayNodes}")
         # print("Update 1")
         # change to selected color
         
         #HERE!
         #if not currentColorNode:
-        print(f"First time loading - auto-setting color map (flag={flag})")
-        
+        # print(f"First time loading - auto-setting color map (flag={flag})")
+        # 
         # if not flag and self.firstTimeFlag0: 
         #     #self.ui.colorMapSelector.setCurrentNode(self.defaultColorNodeID) #cold to hot rainbow
         #     colorNode = slicer.util.getNode(self.defaultColorNodeID)
@@ -2038,7 +2038,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.initializeWindowLevelControls(selectedVolume)
 
         if self.lastLoadedFlag is None or self.lastLoadedFlag != flag:
-            print(f"Flag changed from {self.lastLoadedFlag} to {flag} - auto-setting color map")
+            # print(f"Flag changed from {self.lastLoadedFlag} to {flag} - auto-setting color map")
             self.windowLevelFlagUpdate(flag, selectedVolume) #Updtae the colour and level if the flag has changed
 
             if flag == 0:
@@ -2064,7 +2064,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.lastLoadedFlag = flag  # Update the last flag
         else:
             # Not first time for this flag type - use current selection
-            print(f"Already loaded this type before - using current selection")
+            # print(f"Already loaded this type before - using current selection")
             colorNode = self.ui.colorMapSelector.currentNode()
             colorNode.SetNoName("")  # Empty string, or
             #call windowLevelFlagUpdate even when the flag hasn't changed but the user changed the color map
@@ -2225,13 +2225,13 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             window = self.defaultWindow_DisplacementMag
             level = self.defaultLevel_DisplacementMag
 
-            print("window (DM): ", window, "level (DM): ", level)
+            # print("window (DM): ", window, "level (DM): ", level)
 
         elif flag == 1: #Jacobian
             window = self.defaultLevel_Jacobian
             level = self.defaultLevel_Jacobian
 
-            print("window (Jacobian): ", window, "level (Jacobian): ", level)
+            # print("window (Jacobian): ", window, "level (Jacobian): ", level)
 
         minValue = level - window / 2.0
         maxValue = level + window / 2.0
@@ -2273,7 +2273,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         Initialize window/level controls based on the volume's display node
         and appropriate threshold/visualization range
         '''
-        print("CALLED INITIALIZE WINDOW LEVEL CONTROLS")
+        # print("CALLED INITIALIZE WINDOW LEVEL CONTROLS")
         if not volumeNode:
             return
             
@@ -2675,7 +2675,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
     def onToggleHoverDisplay(self, enabled: bool) -> None:
-        print("on Toggle Hover Display")
+        # print("on Toggle Hover Display")
         
 
         self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
@@ -2688,7 +2688,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             disp.SetGlyphScale(8) 
 
         if enabled:
-            print("enabled")
+            # print("enabled")
             
             # make mouse cursor invisible
             for sliceName in slicer.app.layoutManager().sliceViewNames():
@@ -2719,7 +2719,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.markupTextSizeSlider.valueChanged.connect(self.onMarkupTextChanged)
 
             if self.crosshairObserverTag is None:
-                print('self.crosshairObserver is None')
+                # print('self.crosshairObserver is None')
                 self.crosshairObserverTag = self.crosshairNode.AddObserver(
                     slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent,
                     self.onMouseMoved
@@ -3265,8 +3265,8 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         sitkUtils.PushVolumeToSlicer(jacPercent, targetNode=outputVolume)
 
         array = sitk.GetArrayFromImage(jacPercent)
-        print(f"Jacobian Percent Range: min={array.min():.2f}, max={array.max():.2f}")
-        print(f"Sample values: {array.flatten()[:10]}")  # First 10 values
+        # print(f"Jacobian Percent Range: min={array.min():.2f}, max={array.max():.2f}")
+        # print(f"Sample values: {array.flatten()[:10]}")  # First 10 values
 
         # add flag
         img = outputVolume.GetImageData()
@@ -3288,7 +3288,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
         
         if existingNode:
-            print("Jacobian exists")
+            # print("Jacobian exists")
             colorNode = slicer.util.getNode("JacobianMap")
         #if colorNode:
             displayNode.SetAndObserveColorNodeID(colorNode.GetID())
