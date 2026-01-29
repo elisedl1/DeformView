@@ -977,7 +977,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         inputLayout.addRow("Moving Image:", self.ui.referenceVolume)
         inputLayout.addRow("Fixed Image:", self.ui.backgroundVolume)
         inputLayout.addRow("Transformation:", self.ui.transformNode)
-        # inputLayout.addRow("Output Volume:", self.ui.displacementMagnitudeVolume)
 
         # Add some space before the button
         inputLayout.addRow("", qt.QWidget())  # Empty spacer row
@@ -1018,12 +1017,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         processingLayout.addRow("Colour Map:", self.ui.colorMapSelector)
 
         # Row 1: Load buttons (TOP)
-        # loadButtonsLayout = qt.QHBoxLayout()
-        # loadButtonsLayout.addWidget(self.ui.loadDisplacementButton)
-        # loadButtonsLayout.addWidget(self.ui.loadJacobianButton)
-        # loadButtonsLayout.addStretch(1)
-
-        # center load buttons
         loadButtonsLayout = qt.QHBoxLayout()
         loadButtonsLayout.addStretch(1)
         loadButtonsLayout.addWidget(self.ui.loadDisplacementButton)
@@ -1033,7 +1026,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         processingLayout.addRow(" ", loadButtonsLayout)
 
-        # Row 2: Checkboxes (BELOW)
+        # Row 2: Checkboxes
         checkboxLayout = qt.QHBoxLayout()
         checkboxLayout.addWidget(self.ui.enableDisplacementVisualizationCheckbox)
         checkboxLayout.addWidget(self.ui.enableHoverDisplayCheckbox)
@@ -1041,47 +1034,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         processingLayout.addRow(" ", checkboxLayout)
 
-
-        
-
-        # === SECTION 3: LANDMARKS ===
-
-        landmarkGroup = qt.QGroupBox("Landmark Analysis")
-        landmarkGroup.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 14px;
-                margin-top: 15px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
-        self.layout.addWidget(landmarkGroup)
-
-        landmarkLayout = qt.QFormLayout(landmarkGroup)
-        landmarkLayout.setContentsMargins(20, 25, 20, 20)
-        landmarkLayout.setSpacing(12)
-        landmarkLayout.setVerticalSpacing(12)
-        landmarkLayout.setLabelAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)
-
-        # landmarkLayout.addRow("Convert .tag File:", self.ui.ConvertTagFCSVButton)
-        landmarkLayout.addRow("Select Landmarks:", self.ui.LandmarkSelectorComboBox)
-        landmarkLayout.addRow("Load Landmarks:", self.ui.LoadExpertLabelsButton)
-
-        # Add separator space
-        landmarkLayout.addRow("", qt.QWidget())
-
-        # Results section within landmarks
-        self.ui.selectedLandmarks.setReadOnly(True)
-        self.ui.landmarkEuclidianDistance.setReadOnly(True)
-        self.ui.selectedLandmarks.setStyleSheet("QLineEdit { background-color:gray; color: #333; }")
-        self.ui.landmarkEuclidianDistance.setStyleSheet("QLineEdit { background-color:gray; color: #333; }")
-        # landmarkLayout.addRow("Active Landmarks:", self.ui.selectedLandmarks)
-        # landmarkLayout.addRow("Distance (mm):", self.ui.landmarkEuclidianDistance)
+        # Row 3: Incremental slider (FIXED - now uses processingLayout)
+        incrementalLayout = qt.QHBoxLayout()
+        incrementalLayout.addWidget(self.ui.incrementalSlider, 1)  # Stretch factor
+        processingLayout.addRow("Increment:", incrementalLayout)
 
 
         # === SECTION 4: VISUALIZATION SETTINGS ===
@@ -1108,21 +1064,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         vizLayout.setVerticalSpacing(12)
         vizLayout.setLabelAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)
 
-        # vizLayout.addRow(self.ui.enableUsBorderDisplay)
-
         # Opacity with better layout
         opacityLayout = qt.QHBoxLayout()
         opacityLayout.addWidget(self.ui.opacitySlider, 1)  # Stretch factor
         opacityLayout.addSpacing(10)
         opacityLayout.addWidget(self.ui.opacityValue)
         vizLayout.addRow("Opacity:", opacityLayout)
-
-        # Incremental with better layout
-        incrementalLayout = qt.QHBoxLayout()
-        incrementalLayout.addWidget(self.ui.incrementalSlider, 1)  # Stretch factor
-        incrementalLayout.addSpacing(10)
-        incrementalLayout.addWidget(self.ui.incrementalSlider)
-        vizLayout.addRow("Increment:", incrementalLayout)
 
         # Threshold with labels
         thresLayout = qt.QVBoxLayout()
@@ -1142,19 +1089,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         vizLayout.addRow("Threshold Range:", thresLayout)
 
-
-
-
-
         windowLayout = qt.QVBoxLayout()
         windowLayout.setSpacing(5)
 
-        #vizLayout.addRow("Colour Window:", self.ui.colourWindowSlider)
         colourWindowSliderLayout = qt.QHBoxLayout()
         colourWindowSliderLayout.addWidget(self.ui.windowLevelSlider)
-
         windowLayout.addLayout(colourWindowSliderLayout)
-
 
         WLSpinBoxLayout = qt.QHBoxLayout()
         WLSpinBoxLayout.addWidget(qt.QLabel("W:"))
@@ -1163,46 +1103,26 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         WLSpinBoxLayout.addWidget(qt.QLabel("L:"))
         WLSpinBoxLayout.addWidget(self.ui.levelSpinBox)
         windowLayout.addLayout(WLSpinBoxLayout)
-      
+    
         vizLayout.addRow("Colour Window/Level", windowLayout)
 
-
-        # COLOUR LEVEL
-        # levelLayout = qt.QVBoxLayout()
-        # levelLayout.setSpacing(5)
-        # #vizLayout.addRow("Colour Window:", self.ui.colourWindowSlider)
-        # colourLevelSliderLayout = qt.QHBoxLayout()
-        # colourLevelSliderLayout.addWidget(self.ui.colourLevelSlider)
-        # levelLayout.addLayout(colourLevelSliderLayout)
-
-
-
-        #vizLayout.addRow("Colour Level (brightness):", levelLayout)
-        
-        # colourResetLayout = qt.QHBoxLayout()
-        # colourResetLayout.addWidget()
         vizLayout.addRow(self.ui.resetWindowLevelButton)
-
-
 
         # MARKUP TEXT SIZE
         markupTextSizeLayout = qt.QVBoxLayout()
         markupTextSizeLayout.setSpacing(5)
-        #vizLayout.addRow("Colour Window:", self.ui.colourWindowSlider)
         colourmarkupTextSizeSliderLayout = qt.QHBoxLayout()
         colourmarkupTextSizeSliderLayout.addWidget(self.ui.markupTextSizeSlider)
         markupTextSizeLayout.addLayout(colourmarkupTextSizeSliderLayout)
         vizLayout.addRow("Cursor text size:", markupTextSizeLayout)
 
         # MARKUP SIZE
-        # markupSizeSlider
         markupSizeLayout = qt.QVBoxLayout()
         markupSizeLayout.setSpacing(5)
         colourmarkupSizeSliderLayout = qt.QHBoxLayout()
         colourmarkupSizeSliderLayout.addWidget(self.ui.markupSizeSlider)
         markupSizeLayout.addLayout(colourmarkupSizeSliderLayout)
         vizLayout.addRow("Cursor marker size:", markupSizeLayout)
-
 
         # Add stretch at the end
         self.layout.addStretch(1)
