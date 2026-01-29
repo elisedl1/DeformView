@@ -106,6 +106,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # NEW: Sequence attributes for incremental slider
         self.sequenceNode = None
         self.sequenceBrowserNode = None
+        self.sequenceProxyNode = None
         self.isUpdatingSequence = False
         self.sequenceBrowserObserverTag = None
 
@@ -1255,10 +1256,32 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             logging.warning(f"Invalid sequence index: {itemIndex}")
             return
         
-        # Update sequence browser to show this item
-        self.sequenceBrowserNode.SetSelectedItemNumber(itemIndex)
+        # Block updates to prevent recursion
+        self.isUpdatingSequence = True
         
-        logging.info(f"Displaying {value}% transformation (sequence item {itemIndex})")
+        try:
+            # Update sequence browser to show this item
+            self.sequenceBrowserNode.SetSelectedItemNumber(itemIndex)
+            
+            # Get the proxy node and ensure it's set as background
+            proxyNode = self.sequenceBrowserNode.GetProxyNode(self.sequenceNode)
+            if proxyNode:
+                # Force the proxy node to update
+                proxyNode.Modified()
+                
+                # Ensure it's set as background in all slice views
+                layoutManager = slicer.app.layoutManager()
+                for sliceViewName in layoutManager.sliceViewNames():
+                    compositeNode = layoutManager.sliceWidget(sliceViewName).mrmlSliceCompositeNode()
+                    if compositeNode.GetBackgroundVolumeID() != proxyNode.GetID():
+                        compositeNode.SetBackgroundVolumeID(proxyNode.GetID())
+                
+                logging.info(f"Displaying {value}% transformation (sequence item {itemIndex})")
+            else:
+                logging.error("Failed to get proxy node!")
+        
+        finally:
+            self.isUpdatingSequence = False
                 
 
 
@@ -1807,17 +1830,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             
             # NEW: Create sequence of incrementally transformed background volumes
             self.createIncrementalSequence()
-            if self.sequenceBrowserNode and self.sequenceNode:
-                numItems = self.sequenceNode.GetNumberOfDataNodes()
-                if numItems > 0:
-                    self.isUpdatingSequence = True
-                    self.sequenceBrowserNode.SetSelectedItemNumber(0)
-                    self.isUpdatingSequence = False
-
-            firstVolumeNode = self.sequenceNode.GetNthDataNode(0)
-
-            # Push to Slicer / show it in the background
-            slicer.util.setSliceViewerLayers(background=firstVolumeNode)
             
             # Setup displacement volume display
             dispDisplay = displacementVolume.GetDisplayNode()
@@ -1842,14 +1854,27 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.colorMapSelector.setEnabled(True)
             self.ui.colorMapSelector.setCurrentNode(colorNode)
             
-            # Load displacement visualization
+            # Load displacement visualization as FOREGROUND
             self.ui.loadedTransformVolume.setCurrentNode(displacementVolume)
             self.onLoadDisplacementVolume(flag=0)
             
-            # Setup incremental slider
+            # Setup incremental slider and initialize to 100%
             if hasattr(self.ui, 'incrementalSlider'):
+                self.isUpdatingSequence = True
                 self.ui.incrementalSlider.setValue(100)
                 self.ui.incrementalSlider.setEnabled(True)
+                self.isUpdatingSequence = False
+            
+            # Verify the background is set correctly
+            if hasattr(self, 'sequenceProxyNode') and self.sequenceProxyNode:
+                layoutManager = slicer.app.layoutManager()
+                for sliceViewName in layoutManager.sliceViewNames():
+                    compositeNode = layoutManager.sliceWidget(sliceViewName).mrmlSliceCompositeNode()
+                    currentBG = compositeNode.GetBackgroundVolumeID()
+                    logging.info(f"{sliceViewName} background: {currentBG}")
+                    if currentBG != self.sequenceProxyNode.GetID():
+                        logging.warning(f"Background mismatch in {sliceViewName}, fixing...")
+                        compositeNode.SetBackgroundVolumeID(self.sequenceProxyNode.GetID())
             
             # Store for incremental display
             self.displacementMagnitudeVolume = displacementVolume
@@ -1873,8 +1898,14 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Clean up existing sequence if present
         if self.sequenceNode:
             slicer.mrmlScene.RemoveNode(self.sequenceNode)
+            self.sequenceNode = None
         if self.sequenceBrowserNode:
+            # Remove observer before deleting
+            if self.sequenceBrowserObserverTag:
+                self.sequenceBrowserNode.RemoveObserver(self.sequenceBrowserObserverTag)
+                self.sequenceBrowserObserverTag = None
             slicer.mrmlScene.RemoveNode(self.sequenceBrowserNode)
+            self.sequenceBrowserNode = None
         
         # Create new sequence node
         self.sequenceNode = slicer.mrmlScene.AddNewNodeByClass(
@@ -1887,6 +1918,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             "vtkMRMLSequenceBrowserNode",
             "IncrementalTransformBrowser"
         )
+        
+        # IMPORTANT: Add synchronized sequence BEFORE generating volumes
         self.sequenceBrowserNode.AddSynchronizedSequenceNode(self.sequenceNode)
         
         # Generate 10 incrementally transformed volumes
@@ -1904,61 +1937,73 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 name=f"{self._parameterNode.backgroundVolume.GetName()}_{percentage}pct"
             )
             
-            # Add to sequence
-            timeValue = str(percentage)  # Use percentage as time value
+            # Add to sequence with percentage as index value
+            timeValue = str(percentage)
             self.sequenceNode.SetDataNodeAtValue(transformedVolume, timeValue)
             
             # Remove the individual node from scene (sequence keeps a copy)
             slicer.mrmlScene.RemoveNode(transformedVolume)
         
-        # Set up sequence browser
+        # Set up sequence browser properties
         self.sequenceBrowserNode.SetPlaybackRateFps(10)
         self.sequenceBrowserNode.SetPlaybackActive(False)
         self.sequenceBrowserNode.SetRecording(self.sequenceNode, False)
         
-        # Set initial item to 100% (last item)
+        # CRITICAL: Set initial item to 100% (index 9) BEFORE getting proxy node
         self.sequenceBrowserNode.SetSelectedItemNumber(9)
         
-        # Add observer to sync slider when sequence changes
-        if self.sequenceBrowserObserverTag:
-            self.sequenceBrowserNode.RemoveObserver(self.sequenceBrowserObserverTag)
+        # CRITICAL: Get the proxy node - this is what gets displayed
+        proxyNode = self.sequenceBrowserNode.GetProxyNode(self.sequenceNode)
         
-        self.sequenceBrowserNode.AddObserver(
+        if not proxyNode:
+            logging.error("Failed to get proxy node from sequence browser!")
+            return
+        
+        # Store proxy node for later use
+        self.sequenceProxyNode = proxyNode
+        
+        logging.info(f"Proxy node created: {proxyNode.GetName()}")
+        
+        # Set the proxy node as background in all slice views
+        layoutManager = slicer.app.layoutManager()
+        for sliceViewName in layoutManager.sliceViewNames():
+            compositeNode = layoutManager.sliceWidget(sliceViewName).mrmlSliceCompositeNode()
+            compositeNode.SetBackgroundVolumeID(proxyNode.GetID())
+            logging.info(f"Set {sliceViewName} background to proxy node")
+        
+        # Add observer to sync slider when sequence changes
+        self.sequenceBrowserObserverTag = self.sequenceBrowserNode.AddObserver(
             vtk.vtkCommand.ModifiedEvent,
             self.onSequenceBrowserIndexChanged
         )
-                
-        logging.info(f"Created sequence with {self.sequenceNode.GetNumberOfDataNodes()} volumes")
         
-        # Display the sequence proxy node
-        proxyNode = self.sequenceBrowserNode.GetProxyNode(self.sequenceNode)
-        if proxyNode:
-            # Set as background in slice views
-            slicer.util.setSliceViewerLayers(background=proxyNode)
+        logging.info(f"Created sequence with {self.sequenceNode.GetNumberOfDataNodes()} volumes")
 
 
-    # ============================================================================
-    # SECTION 6: Add observer callback for sequence browser changes
-    # ============================================================================
     def onSequenceBrowserIndexChanged(self, caller, event):
         """
         Called when sequence browser index changes (e.g., from toolbar controls).
         Updates the slider to match.
         """
+
+
         if self.isUpdatingSequence:
             return
         
         self.isUpdatingSequence = True
         
-        itemIndex = self.sequenceBrowserNode.GetSelectedItemNumber()
-        # Map index (0-9) to slider value (10-100)
-        sliderValue = (itemIndex + 1) * 10
-        
-        self.ui.incrementalSlider.blockSignals(True)
-        self.ui.incrementalSlider.setValue(sliderValue)
-        self.ui.incrementalSlider.blockSignals(False)
-        
-        self.isUpdatingSequence = False
+        try:
+            itemIndex = self.sequenceBrowserNode.GetSelectedItemNumber()
+            # Map index (0-9) to slider value (10-100)
+            sliderValue = (itemIndex + 1) * 10
+            
+            self.ui.incrementalSlider.blockSignals(True)
+            self.ui.incrementalSlider.setValue(sliderValue)
+            self.ui.incrementalSlider.blockSignals(False)
+            
+            logging.info(f"Sequence changed to item {itemIndex} ({sliderValue}%)")
+        finally:
+            self.isUpdatingSequence = False
 
 
     def createDisplacementIcon(self):
