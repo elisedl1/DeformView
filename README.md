@@ -89,7 +89,7 @@ DeformView is useful for:
 
 ## Contributors
 
-Elise Donszelmann-Lund 
+Elise Donszelmann-Lund (@elisedl1)
 
 Isabel Frolick (@isabelfrolick)
 
