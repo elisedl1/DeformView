@@ -85,3 +85,10 @@ DeformView is useful for:
 
 - A valid transformation must be provided to compute deformation maps.
 
+---
+
+## Contributors
+
+Elise Donszelmann-Lund 
+Isabel Frolick (@isabelfrolick)
+Taj Choksi (@TC2423)
