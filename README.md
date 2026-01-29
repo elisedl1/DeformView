@@ -59,7 +59,7 @@ DeformView is useful for:
 - Adjust **visible displacement range** (thresholding)
 - Modify **window/level** of the displacement volume
 
-  ![](media/increment.gif)
+  ![](increment.gif)
 
 ---
 
