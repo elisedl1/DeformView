@@ -1807,6 +1807,17 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             
             # NEW: Create sequence of incrementally transformed background volumes
             self.createIncrementalSequence()
+            if self.sequenceBrowserNode and self.sequenceNode:
+                numItems = self.sequenceNode.GetNumberOfDataNodes()
+                if numItems > 0:
+                    self.isUpdatingSequence = True
+                    self.sequenceBrowserNode.SetSelectedItemNumber(0)
+                    self.isUpdatingSequence = False
+
+            firstVolumeNode = self.sequenceNode.GetNthDataNode(0)
+
+            # Push to Slicer / show it in the background
+            slicer.util.setSliceViewerLayers(background=firstVolumeNode)
             
             # Setup displacement volume display
             dispDisplay = displacementVolume.GetDisplayNode()
@@ -1845,6 +1856,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             imageData = displacementVolume.GetImageData()
             scalars = imageData.GetPointData().GetScalars()
             self._fullDisplacementArray = vtk_to_numpy(scalars).copy()
+
 
 
     def createIncrementalSequence(self):
@@ -1911,11 +1923,11 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self.sequenceBrowserObserverTag:
             self.sequenceBrowserNode.RemoveObserver(self.sequenceBrowserObserverTag)
         
-        self.sequenceBrowserObserverTag = self.sequenceBrowserNode.AddObserver(
-            slicer.vtkMRMLSequenceBrowserNode.IndexDisplayedEvent,
+        self.sequenceBrowserNode.AddObserver(
+            vtk.vtkCommand.ModifiedEvent,
             self.onSequenceBrowserIndexChanged
         )
-        
+                
         logging.info(f"Created sequence with {self.sequenceNode.GetNumberOfDataNodes()} volumes")
         
         # Display the sequence proxy node
