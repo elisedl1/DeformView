@@ -203,14 +203,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.loadedTransformVolume.setMRMLScene(slicer.mrmlScene)
 
 
-        self.ui.incrementalSlider.valueChanged.connect(self.onIncrementalChanged)
-        self.ui.incrementalSlider.setMinimum(10)
-        self.ui.incrementalSlider.setMaximum(100)
-        self.ui.incrementalSlider.setSingleStep(10)
-        self.ui.incrementalSlider.setPageStep(10)
-        self.ui.incrementalSlider.setTickInterval(10)
-        self.ui.incrementalSlider.setTickPosition(qt.QSlider.TicksBelow)
-
         # NEW: Add observer for sequence browser changes
         self.sequenceBrowserObserverTag = None
 
@@ -365,7 +357,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # incremental displacement slider
         self.ui.incrementalSlider.valueChanged.connect(self.onIncrementalChanged)
-        self.ui.incrementalSlider.setMinimum(10)
+        self.ui.incrementalSlider.setMinimum(0)
         self.ui.incrementalSlider.setMaximum(100)
         self.ui.incrementalSlider.setSingleStep(10)
         self.ui.incrementalSlider.setPageStep(10)
@@ -1233,9 +1225,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onIncrementalChanged(self, value: int) -> None:
         """
         Called when incremental slider changes.
-        Scales the transform displacement - this automatically updates BOTH
-        the background volume and displacement overlay since both are under
-        the same transform in the hierarchy.
+        Scales the transform displacement AND the displacement magnitude values.
         """
         if self.isUpdatingSequence:
             return
@@ -1246,27 +1236,111 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         # Convert slider value (10-100) to scale (0.1-1.0)
         scale = value / 100.0
+        if scale == 0:
+            scale = 0.0001
         
         # Get the BSpline transform
         transformNode = self._parameterNode.transformNode
-        bsplineTransform = transformNode.GetTransformFromParent() # from steve's code
+        bsplineTransform = transformNode.GetTransformFromParent()
         
-        # if not bsplineTransform:
-        #     logging.warning("Could not get transform from parent.")
-        #     return
+        if not bsplineTransform:
+            logging.warning("Could not get transform from parent.")
+            return
         
-        # # Check if it has SetDisplacementScale method
-        # if not hasattr(bsplineTransform, 'SetDisplacementScale'):
-        #     logging.warning("Transform does not support displacement scaling.")
-        #     return
+        # Check if it has SetDisplacementScale method
+        if not hasattr(bsplineTransform, 'SetDisplacementScale'):
+            logging.warning("Transform does not support displacement scaling.")
+            return
         
-        # apply the scale - this updates both volumes automatically
-        bsplineTransform.SetDisplacementScale(scale) # from steve's code 
-        
-        # Force update
+        # Apply the scale to the transform (updates spatial positions)
+        bsplineTransform.SetDisplacementScale(scale)
         transformNode.Modified()
         
-        # logging.info(f"Set transform displacement scale to {scale:.1%} - both volumes updated")
+        # Also scale the displacement magnitude values
+        if hasattr(self, 'displacementMagnitudeVolume') and self.displacementMagnitudeVolume:
+            self.scaleDisplacementMagnitudeValues(scale)
+        
+        # Also scale Jacobian if it's loaded
+        if hasattr(self, 'jacobianVolume') and self.jacobianVolume:
+            self.scaleJacobianValues(scale)
+        
+        logging.info(f"Set transform displacement scale to {scale:.1%}")
+
+
+    def scaleDisplacementMagnitudeValues(self, scale: float):
+        """
+        Scale the actual displacement magnitude values in the volume.
+        This updates the colormap overlay to show scaled displacement values.
+        """
+        if not hasattr(self, '_fullDisplacementArray') or self._fullDisplacementArray is None:
+            logging.warning("Original displacement array not stored")
+            return
+        
+        volumeNode = self.displacementMagnitudeVolume
+        imageData = volumeNode.GetImageData()
+        
+        if not imageData:
+            return
+        
+        # Scale the displacement values from the original full-scale array
+        scaledArray = self._fullDisplacementArray * scale
+        
+        # Get the VTK array and update it
+        vtk_array = imageData.GetPointData().GetScalars()
+        
+        # Use numpy to update efficiently
+        vtk_array_np = vtk_to_numpy(vtk_array)
+        vtk_array_np[:] = scaledArray
+        
+        # Mark as modified to trigger visualization update
+        vtk_array.Modified()
+        imageData.Modified()
+        volumeNode.Modified()
+        
+        # Update display node
+        displayNode = volumeNode.GetDisplayNode()
+        if displayNode:
+            displayNode.Modified()
+        
+        logging.debug(f"Scaled displacement values by {scale:.1%}")
+
+
+    def scaleJacobianValues(self, scale: float):
+        """
+        Scale the Jacobian values based on displacement scale.
+        Jacobian shows compression/expansion, which also scales with displacement.
+        """
+        if not hasattr(self, '_fullJacobianArray') or self._fullJacobianArray is None:
+            logging.warning("Original Jacobian array not stored")
+            return
+        
+        volumeNode = self.jacobianVolume
+        imageData = volumeNode.GetImageData()
+        
+        if not imageData:
+            return
+        
+        # For Jacobian: J_scaled = 1 + scale * (J_full - 1)
+        # This ensures at scale=0, J=1 (no deformation)
+        # At scale=1, J=J_full (full deformation)
+        scaledArray = 1.0 + scale * (self._fullJacobianArray - 1.0)
+        
+        # Get the VTK array and update it
+        vtk_array = imageData.GetPointData().GetScalars()
+        vtk_array_np = vtk_to_numpy(vtk_array)
+        vtk_array_np[:] = scaledArray
+        
+        # Mark as modified
+        vtk_array.Modified()
+        imageData.Modified()
+        volumeNode.Modified()
+        
+        # Update display node
+        displayNode = volumeNode.GetDisplayNode()
+        if displayNode:
+            displayNode.Modified()
+        
+        logging.debug(f"Scaled Jacobian values by {scale:.1%}")
                 
 
 
@@ -1812,7 +1886,18 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 defaultColourMap=self.defaultColorNodeID
             )
             
-            # Apply transform to BOTH volumes so they update together
+            # Store original arrays for scaling
+            imageData = displacementVolume.GetImageData()
+            scalars = imageData.GetPointData().GetScalars()
+            self._fullDisplacementArray = vtk_to_numpy(scalars).copy()
+            
+            jacImageData = jacobianVolume.GetImageData()
+            jacScalars = jacImageData.GetPointData().GetScalars()
+            self._fullJacobianArray = vtk_to_numpy(jacScalars).copy()
+            
+            logging.info(f"Stored original arrays - Displacement range: [{self._fullDisplacementArray.min():.2f}, {self._fullDisplacementArray.max():.2f}]")
+            
+            # Apply transform to BOTH volumes so they update together spatially
             transformNode = self._parameterNode.transformNode
             
             # Apply transform to background volume
@@ -1867,8 +1952,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.ui.incrementalSlider.setEnabled(True)
                 self.isUpdatingSequence = False
             
-            # Store for reference
+            # Store volumes for reference
             self.displacementMagnitudeVolume = displacementVolume
+            self.jacobianVolume = jacobianVolume
             
             logging.info("Transform applied to both background and displacement volumes")
 
