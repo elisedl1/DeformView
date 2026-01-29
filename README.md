@@ -84,5 +84,4 @@ DeformView is useful for:
 ## Notes
 
 - A valid transformation must be provided to compute deformation maps.
-- Jacobian visualization uses a fixed, scientifically derived color map to preserve interpretability.
 
