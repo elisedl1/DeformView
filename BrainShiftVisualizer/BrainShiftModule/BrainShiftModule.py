@@ -2151,19 +2151,32 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         '''
         Updates button appearance based on which visualization is active
         '''
-        # Style for active (pressed) button
-        activeStyle = """
-            QPushButton {
-                background-color: #434343;
-                border: 2px solid #707070;
-                color: #FFFFFF;
-            }
-        """
+        # Detect if we're in dark mode by checking the palette
+        palette = qt.QPalette()
+        isDarkMode = palette.window().color().lightness() < 128
         
-        # Style for inactive button
+        if isDarkMode:
+            # Dark mode: lighten the active button
+            activeStyle = """
+                QPushButton {
+                    background-color: rgba(255, 255, 255, 0.15);
+                    border: 2px solid rgba(255, 255, 255, 0.3);
+                }
+            """
+        else:
+            # Light mode: darken the active button
+            activeStyle = """
+                QPushButton {
+                    background-color: rgba(0, 0, 0, 0.08);
+                    border: 2px solid rgba(0, 0, 0, 0.2);
+                }
+            """
+        
+        # Style for inactive button (same for both modes)
         inactiveStyle = """
             QPushButton {
-                color: #A0A0A0;
+                background-color: transparent;
+                border: 2px solid transparent;
             }
         """
         
@@ -2173,7 +2186,6 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         else:
             self.ui.loadDisplacementButton.setStyleSheet(inactiveStyle)
             self.ui.loadJacobianButton.setStyleSheet(activeStyle)
-
 
     def onLoadDisplacementVolume(self, flag:int) -> None:
 
