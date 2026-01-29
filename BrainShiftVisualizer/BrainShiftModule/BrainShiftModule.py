@@ -2513,7 +2513,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #print("Image Data", imageData)
         if imageData:
             minScalar, maxScalar = imageData.GetScalarRange()
-            defaultMinValue = minScalar + 0.02 * (maxScalar - minScalar) #Default minimum set to 2%
+            # defaultMinValue = minScalar + 0.009 * (maxScalar - minScalar) #Default minimum set to 2%
+            defaultMinValue = 0.009
             self.scalarRange = (float(minScalar), float(maxScalar))  # store exact range
             #print(f"min: {minScalar}, max: {maxScalar}")
             #print(defaultMinValue)
