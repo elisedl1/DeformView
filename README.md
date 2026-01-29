@@ -53,6 +53,14 @@ DeformView is useful for:
   - Applies **100% of the transformation**
   - Overlays the corresponding displacement volume
 
+### Increment Slider
+  - Controls the **step size** of the applied transformation
+  - Allows visualization of **0–100% of the transformation**
+- Adjust **visible displacement range** (thresholding)
+- Modify **window/level** of the displacement volume
+
+  ![](media/increment.gif)
+
 ---
 
 ### Color Map / Loading Function
@@ -71,11 +79,6 @@ DeformView is useful for:
 ### Display Settings
 
 - Adjust **overlay opacity** of the displacement or Jacobian volume
-- **Increment Slider**
-  - Controls the **step size** of the applied transformation
-  - Allows visualization of **0–100% of the transformation**
-- Adjust **visible displacement range** (thresholding)
-- Modify **window/level** of the displacement volume
 
 ---
 
