@@ -1871,6 +1871,11 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             logging.info(f"Background Volume: {self._parameterNode.backgroundVolume}")
             logging.info(f"Transform Node: {self._parameterNode.transformNode}")
             
+            #  NEW: Reset background volume to have no transform
+            if self._parameterNode.backgroundVolume:
+                self._parameterNode.backgroundVolume.SetAndObserveTransformNodeID(None)
+                logging.info("Reset background volume transform to identity")
+            
             # Create displacement field (for visualization)
             displacementVolume = self.logic.computeDisplacementMagnitude(
                 referenceVolume=self._parameterNode.referenceVolume,
@@ -1900,16 +1905,17 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # Apply transform to BOTH volumes so they update together spatially
             transformNode = self._parameterNode.transformNode
             
-            # Apply transform to background volume
+            # UPDATED: Apply transform to background volume (now starting from identity)
             self._parameterNode.backgroundVolume.SetAndObserveTransformNodeID(transformNode.GetID())
             
             # Apply transform to displacement magnitude volume
             displacementVolume.SetAndObserveTransformNodeID(transformNode.GetID())
             
-            # Initialize transform scale to 100%
+            # NEW: Reset transform scale to 100% (important!)
             bsplineTransform = transformNode.GetTransformFromParent()
             if bsplineTransform and hasattr(bsplineTransform, 'SetDisplacementScale'):
                 bsplineTransform.SetDisplacementScale(1.0)
+                logging.info("Reset transform scale to 100%")
             
             # Setup displacement volume display
             dispDisplay = displacementVolume.GetDisplayNode()
@@ -1945,12 +1951,13 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.loadedTransformVolume.setCurrentNode(displacementVolume)
             self.onLoadDisplacementVolume(flag=0)
             
-            # Setup incremental slider - start at 100%
+            # UPDATED: Reset incremental slider to 100%
             if hasattr(self.ui, 'incrementalSlider'):
                 self.isUpdatingSequence = True
                 self.ui.incrementalSlider.setValue(100)
                 self.ui.incrementalSlider.setEnabled(True)
                 self.isUpdatingSequence = False
+                logging.info("Reset incremental slider to 100%")
             
             # Store volumes for reference
             self.displacementMagnitudeVolume = displacementVolume
