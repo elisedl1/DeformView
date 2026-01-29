@@ -12,6 +12,8 @@ DeformView provides two complementary visualization maps:
 
 A **real-time cursor display** allows users to hover over any voxel and directly view the corresponding **displacement or Jacobian value**.
 
+![](main_UI.png)
+
 ---
 
 ## Use Cases
