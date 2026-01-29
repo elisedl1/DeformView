@@ -58,7 +58,7 @@ DeformView is useful for:
   - Controls the **step size** of the applied transformation
   - Allows visualization of **0–100% of the transformation**
 
-  ![](media/increment.gif)
+  ![](increment.gif)
 
 ---
 
