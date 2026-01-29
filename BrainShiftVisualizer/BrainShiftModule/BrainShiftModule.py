@@ -1255,7 +1255,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Apply the scale to the transform (updates spatial positions)
         bsplineTransform.SetDisplacementScale(scale)
         transformNode.Modified()
-        
+
         # Also scale the displacement magnitude values
         if hasattr(self, 'displacementMagnitudeVolume') and self.displacementMagnitudeVolume:
             self.scaleDisplacementMagnitudeValues(scale)
@@ -1263,8 +1263,44 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Also scale Jacobian if it's loaded
         if hasattr(self, 'jacobianVolume') and self.jacobianVolume:
             self.scaleJacobianValues(scale)
+
+        if self.ui.enableHoverDisplayCheckbox.isChecked():
+            self.ensureHoverDisplayActive()
         
         logging.info(f"Set transform displacement scale to {scale:.1%}")
+
+
+    def ensureHoverDisplayActive(self):
+        """
+        Ensure the hover display is properly active.
+        Call this after transform modifications that might disrupt the observer.
+        """
+        if not self.ui.enableHoverDisplayCheckbox.isChecked():
+            return
+        
+        # Check if observer exists
+        if self.crosshairObserverTag is None:
+            logging.info("Hover display enabled but observer missing - re-establishing")
+            
+            # Ensure label node exists
+            if not hasattr(self, 'labelMarkupNode') or not self.labelMarkupNode:
+                self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
+            
+            # Re-add observer
+            if self.crosshairNode:
+                self.crosshairObserverTag = self.crosshairNode.AddObserver(
+                    slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent,
+                    self.onMouseMoved
+                )
+                logging.info("Re-established crosshair observer")
+        
+        # Verify display node visibility
+        if hasattr(self, 'labelMarkupNode') and self.labelMarkupNode:
+            disp = self.labelMarkupNode.GetDisplayNode()
+            if disp and not disp.GetVisibility2D():
+                disp.SetVisibility2D(True)
+                disp.SetPointLabelsVisibility(True)
+                logging.info("Re-enabled label node visibility")
 
 
     def scaleDisplacementMagnitudeValues(self, scale: float):
@@ -1870,6 +1906,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             logging.info(f"Reference Volume: {self._parameterNode.referenceVolume}")
             logging.info(f"Background Volume: {self._parameterNode.backgroundVolume}")
             logging.info(f"Transform Node: {self._parameterNode.transformNode}")
+
+            hoverWasEnabled = self.ui.enableHoverDisplayCheckbox.isChecked()
             
             #  NEW: Reset background volume to have no transform
             if self._parameterNode.backgroundVolume:
@@ -1962,6 +2000,10 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # Store volumes for reference
             self.displacementMagnitudeVolume = displacementVolume
             self.jacobianVolume = jacobianVolume
+
+            if hoverWasEnabled:
+                # Small delay to ensure everything is set up
+                qt.QTimer.singleShot(100, lambda: self.ensureHoverDisplayActive())
             
             logging.info("Transform applied to both background and displacement volumes")
 
