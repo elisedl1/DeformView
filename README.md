@@ -1,42 +1,84 @@
-# Overview
+# DeformView
 
-DeformView provides intuitive, quantified visualization of non-linear deformation fields. It allows users to interpret deformations with dense, voxel-wise maps.
+## Overview
+
+**DeformView** provides **intuitive, quantitative visualization of non-linear deformation fields** within the 3D Slicer platform.  
+It enables users to interpret deformations using **dense, voxel-wise maps**, given a known transformation and corresponding image data.
 
 DeformView provides two complementary visualization maps:
 
-1. Displacement Magnitude Map (mm) - shows local displacement of tissue.
-2. Jacobian Determinant Magnitude (%) - shows local tissue expansion or compression.
+1. **Displacement Magnitude Map (mm)** – shows local tissue displacement.  
+2. **Jacobian Determinant Magnitude (%)** – shows local tissue expansion or compression.
 
-A real-time cursor display allows users to hover over any voxel and see the displacement/jacobian value. 
+A **real-time cursor display** allows users to hover over any voxel and directly view the corresponding **displacement or Jacobian value**.
 
-# Use Cases
+---
 
-- understanding non-linear tissue deformation
-- evaluation of registration algorithms
-- research in brain shift modeling
-- quantitative interpretation of deformation fields
-- comparing preoperative and intraoperative scans
+## Use Cases
 
-# Panels and Their Use
-Moving Image: Image after transform has been applied
-Fixed Image: Reference image
-Transformation: Known transformation between images
+DeformView is useful for:
 
-Compute Displacement Field Mapping
-- computes both the dense mm displacement volume and the dense jacobian determinant volume
-- automatically loads the fixed volume into the scene with 100% of the transformation applied, overlayed with the corresponding displacement volume
+- **Understanding non-linear tissue deformation**
+- **Evaluation of image registration algorithms**
+- **Research in brain shift modeling**
+- **Quantitative interpretation of deformation fields**
+- **Comparing preoperative and intraoperative scans**
 
-Color Map/Loading Function
-- switch between displacement volume and Jacobian volume 
-- must reload to update color map 
-- includes a selection of intuitive color maps
-- only applied to the computed displacement volume
-- * Jacobian volume has a fixed color map and cannot be changed
- 
-Display Settings
-- change opacity of displacement/jacobian volume overlay
-- Increment slider
-- --> change the step of the transform
-- --> ie apply 0-100% of the transform onto the overlayed/background volume
-- change visible displacement range (threshold)
-- change level/window of displacement volume
+---
+
+## Panels and Their Use
+
+### Input Selection
+
+- **Moving Image**  
+  Image after the transformation has been applied.
+
+- **Fixed Image**  
+  Reference image.
+
+- **Transformation**  
+  Known transformation between the fixed and moving images.
+
+---
+
+### Compute Displacement Field Mapping
+
+- Computes both:
+  - **Dense displacement magnitude volume (mm)**
+  - **Dense Jacobian determinant magnitude volume (%)**
+- Automatically:
+  - Loads the fixed volume into the scene
+  - Applies **100% of the transformation**
+  - Overlays the corresponding displacement volume
+
+---
+
+### Color Map / Loading Function
+
+- Switch between:
+  - **Displacement volume**
+  - **Jacobian volume**
+- Reload required to update the color map
+- Includes a selection of **intuitive, perceptually meaningful color maps**
+- Color maps are:
+  - **Editable for the displacement volume**
+  - **Fixed for the Jacobian volume** (cannot be changed)
+
+---
+
+### Display Settings
+
+- Adjust **overlay opacity** of the displacement or Jacobian volume
+- **Increment Slider**
+  - Controls the **step size** of the applied transformation
+  - Allows visualization of **0–100% of the transformation**
+- Adjust **visible displacement range** (thresholding)
+- Modify **window/level** of the displacement volume
+
+---
+
+## Notes
+
+- A valid transformation must be provided to compute deformation maps.
+- Jacobian visualization uses a fixed, scientifically derived color map to preserve interpretability.
+
