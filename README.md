@@ -90,5 +90,6 @@ DeformView is useful for:
 ## Contributors
 
 Elise Donszelmann-Lund 
+
 Isabel Frolick (@isabelfrolick)
-Taj Choksi (@TC2423)
+
