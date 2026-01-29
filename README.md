@@ -55,17 +55,10 @@ DeformView is useful for:
 
 ### Increment Slider
 
-<div style="display:flex; align-items:center; gap:20px;">
-  <div>
-    <ul>
-      <li>Controls the <b>step size</b> of the applied transformation</li>
-      <li>Allows visualization of <b>0–100%</b> of the transformation</li>
-      <li>Adjust <b>visible displacement range</b> (thresholding)</li>
-      <li>Modify <b>window/level</b> of the displacement volume</li>
-    </ul>
-  </div>
-  <img src="increment.gif" width="240"/>
-</div>
+  - Controls the **step size** of the applied transformation
+  - Allows visualization of **0–100% of the transformation**
+
+  ![](media/increment.gif)
 
 ---
 
