@@ -54,9 +54,9 @@ class BrainShiftModule(ScriptedLoadableModule):
         self.parent.title = _("BrainShiftModule")
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Examples")]
         self.parent.dependencies = [] 
-        self.parent.contributors = [" Isabel Frolick (McGill), Elise Donszelmann-Lund (McGill), Étienne Léger"]  
+        self.parent.contributors = [" Isabel Frolick (McGill), Elise Donszelmann-Lund (McGill)"]  
         self.parent.helpText = _("""
-            Visualize Brain Shift (mm) per voxel
+            Dense deformation visualization module.
             See more information in <a href="https://github.com/organization/projectname#BrainShiftModule">module documentation</a>.
             """)
         self.parent.acknowledgementText = _(""" """)
@@ -96,12 +96,15 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     """
 
     def __init__(self, parent=None) -> None:
-        """Called when the user opens the module the first time and the widget is initialized."""
+        """Called when the user opens the module the first time."""
         ScriptedLoadableModuleWidget.__init__(self, parent)
-        VTKObservationMixin.__init__(self)  # needed for parameter node observation
+        VTKObservationMixin.__init__(self)
         self.logic = None
         self._parameterNode = None
         self._parameterNodeGuiTag = None
+        
+        # NEW: Sequence attributes for incremental slider
+        self.isUpdatingSequence = False
 
 
     def setup(self) -> None:
@@ -200,14 +203,9 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.loadedTransformVolume.setMRMLScene(slicer.mrmlScene)
 
 
-        #Step 3: has crosshair in it to check if moving but seems wrong
-        # self.ui.loadedTransformVolume.connect("currentNodeChanged(vtkMRMLNode*)", 
-        #                                   self.onTransformVolumeChanged)
-        # connect
-        # self.ui.loadDisplacementVolumeButton.connect("clicked(bool)", self.onLoadDisplacementVolume)
+        # NEW: Add observer for sequence browser changes
+        self.sequenceBrowserObserverTag = None
 
-        #self.ui.loadDisplacementButton.setIcon(self.createDisplacementIcon())
-        #self.ui.loadDisplacementButton.setIconSize(qt.QSize(80, 50))
 
 
 
@@ -352,15 +350,27 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.opacitySlider.valueChanged.connect(self.onOpacityChanged)
         self.onOpacityChanged(self.ui.opacitySlider.value)
 
+        #track whether it's the first time for each flag type (first time with flag=0, first time with flag=1) for colour 
+        self.firstTimeFlag0 = True  # First time loading a volume with flag=0
+        self.firstTimeFlag1 = True  # First time loading a volume with flag=1
+        self.lastLoadedFlag = None
+
+        # incremental displacement slider
+        self.ui.incrementalSlider.valueChanged.connect(self.onIncrementalChanged)
+        self.ui.incrementalSlider.setMinimum(0)
+        self.ui.incrementalSlider.setMaximum(100)
+        self.ui.incrementalSlider.setSingleStep(10)
+        self.ui.incrementalSlider.setPageStep(10)
+        self.ui.incrementalSlider.setTickInterval(10)
+        self.ui.incrementalSlider.setTickPosition(qt.QSlider.TicksBelow)
+        # self.onIncrementalChanged(self.ui.incrementalSlider.value)
+
         #Euclidian
         self.watchActiveLabel()
         self.ui.selectedLandmarks.setReadOnly(True)
         self.ui.landmarkEuclidianDistance.setReadOnly(True)
 
-        #track whether it's the first time for each flag type (first time with flag=0, first time with flag=1) for colour 
-        self.firstTimeFlag0 = True  # First time loading a volume with flag=0
-        self.firstTimeFlag1 = True  # First time loading a volume with flag=1
-        self.lastLoadedFlag = None
+
 
         # connect displacement button WTIH ICON
         self.ui.loadDisplacementButton.connect(
@@ -1107,6 +1117,13 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         opacityLayout.addWidget(self.ui.opacityValue)
         vizLayout.addRow("Opacity:", opacityLayout)
 
+        # Incremental with better layout
+        incrementalLayout = qt.QHBoxLayout()
+        incrementalLayout.addWidget(self.ui.incrementalSlider, 1)  # Stretch factor
+        incrementalLayout.addSpacing(10)
+        incrementalLayout.addWidget(self.ui.incrementalSlider)
+        vizLayout.addRow("Increment:", incrementalLayout)
+
         # Threshold with labels
         thresLayout = qt.QVBoxLayout()
         thresLayout.setSpacing(5)
@@ -1203,6 +1220,164 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         normalizedValue = value/100
         slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
         self.ui.opacityValue.setText(f"{value:.0f}%")
+
+
+    def onIncrementalChanged(self, value: int) -> None:
+        """
+        Called when incremental slider changes.
+        Scales the transform displacement AND the displacement magnitude values.
+        """
+        if self.isUpdatingSequence:
+            return
+        
+        if not self._parameterNode or not self._parameterNode.transformNode:
+            logging.warning("No transform available for incremental display.")
+            return
+        
+        # Convert slider value (10-100) to scale (0.1-1.0)
+        scale = value / 100.0
+        if scale == 0:
+            scale = 0.0001
+        
+        # Get the BSpline transform
+        transformNode = self._parameterNode.transformNode
+        bsplineTransform = transformNode.GetTransformFromParent()
+        
+        if not bsplineTransform:
+            logging.warning("Could not get transform from parent.")
+            return
+        
+        # Check if it has SetDisplacementScale method
+        if not hasattr(bsplineTransform, 'SetDisplacementScale'):
+            logging.warning("Transform does not support displacement scaling.")
+            return
+        
+        # Apply the scale to the transform (updates spatial positions)
+        bsplineTransform.SetDisplacementScale(scale)
+        transformNode.Modified()
+
+        # Also scale the displacement magnitude values
+        if hasattr(self, 'displacementMagnitudeVolume') and self.displacementMagnitudeVolume:
+            self.scaleDisplacementMagnitudeValues(scale)
+        
+        # Also scale Jacobian if it's loaded
+        if hasattr(self, 'jacobianVolume') and self.jacobianVolume:
+            self.scaleJacobianValues(scale)
+
+        if self.ui.enableHoverDisplayCheckbox.isChecked():
+            self.ensureHoverDisplayActive()
+        
+        logging.info(f"Set transform displacement scale to {scale:.1%}")
+
+
+    def ensureHoverDisplayActive(self):
+        """
+        Ensure the hover display is properly active.
+        Call this after transform modifications that might disrupt the observer.
+        """
+        if not self.ui.enableHoverDisplayCheckbox.isChecked():
+            return
+        
+        # Check if observer exists
+        if self.crosshairObserverTag is None:
+            logging.info("Hover display enabled but observer missing - re-establishing")
+            
+            # Ensure label node exists
+            if not hasattr(self, 'labelMarkupNode') or not self.labelMarkupNode:
+                self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
+            
+            # Re-add observer
+            if self.crosshairNode:
+                self.crosshairObserverTag = self.crosshairNode.AddObserver(
+                    slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent,
+                    self.onMouseMoved
+                )
+                logging.info("Re-established crosshair observer")
+        
+        # Verify display node visibility
+        if hasattr(self, 'labelMarkupNode') and self.labelMarkupNode:
+            disp = self.labelMarkupNode.GetDisplayNode()
+            if disp and not disp.GetVisibility2D():
+                disp.SetVisibility2D(True)
+                disp.SetPointLabelsVisibility(True)
+                logging.info("Re-enabled label node visibility")
+
+
+    def scaleDisplacementMagnitudeValues(self, scale: float):
+        """
+        Scale the actual displacement magnitude values in the volume.
+        This updates the colormap overlay to show scaled displacement values.
+        """
+        if not hasattr(self, '_fullDisplacementArray') or self._fullDisplacementArray is None:
+            logging.warning("Original displacement array not stored")
+            return
+        
+        volumeNode = self.displacementMagnitudeVolume
+        imageData = volumeNode.GetImageData()
+        
+        if not imageData:
+            return
+        
+        # Scale the displacement values from the original full-scale array
+        scaledArray = self._fullDisplacementArray * scale
+        
+        # Get the VTK array and update it
+        vtk_array = imageData.GetPointData().GetScalars()
+        
+        # Use numpy to update efficiently
+        vtk_array_np = vtk_to_numpy(vtk_array)
+        vtk_array_np[:] = scaledArray
+        
+        # Mark as modified to trigger visualization update
+        vtk_array.Modified()
+        imageData.Modified()
+        volumeNode.Modified()
+        
+        # Update display node
+        displayNode = volumeNode.GetDisplayNode()
+        if displayNode:
+            displayNode.Modified()
+        
+        logging.debug(f"Scaled displacement values by {scale:.1%}")
+
+
+    def scaleJacobianValues(self, scale: float):
+        """
+        Scale the Jacobian values based on displacement scale.
+        Jacobian shows compression/expansion, which also scales with displacement.
+        """
+        if not hasattr(self, '_fullJacobianArray') or self._fullJacobianArray is None:
+            logging.warning("Original Jacobian array not stored")
+            return
+        
+        volumeNode = self.jacobianVolume
+        imageData = volumeNode.GetImageData()
+        
+        if not imageData:
+            return
+        
+        # For Jacobian: J_scaled = 1 + scale * (J_full - 1)
+        # This ensures at scale=0, J=1 (no deformation)
+        # At scale=1, J=J_full (full deformation)
+        scaledArray = 1.0 + scale * (self._fullJacobianArray - 1.0)
+        
+        # Get the VTK array and update it
+        vtk_array = imageData.GetPointData().GetScalars()
+        vtk_array_np = vtk_to_numpy(vtk_array)
+        vtk_array_np[:] = scaledArray
+        
+        # Mark as modified
+        vtk_array.Modified()
+        imageData.Modified()
+        volumeNode.Modified()
+        
+        # Update display node
+        displayNode = volumeNode.GetDisplayNode()
+        if displayNode:
+            displayNode.Modified()
+        
+        logging.debug(f"Scaled Jacobian values by {scale:.1%}")
+                
 
 
     def onToggleUsDisplay(self) -> None:
@@ -1397,7 +1572,12 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             crosshairNode.RemoveAllObservers()
             # print("Removed all crosshair observers")
 
-        
+        if self.sequenceBrowserObserverTag and self.sequenceBrowserNode:
+            self.sequenceBrowserNode.RemoveObserver(self.sequenceBrowserObserverTag)
+            self.sequenceBrowserObserverTag = None
+
+
+
 
     def onSceneUpdated(self, caller, event):
         self.updateLandmarkSelectorComboBox()
@@ -1718,80 +1898,237 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
     def onApplyButton(self) -> None:
-        """Run processing when user clicks 'Compute Mapping' button.
-        
         """
-        #print("in onApply")
+        Run processing when user clicks 'Compute Mapping' button.
+        """
         with slicer.util.tryWithErrorDisplay(_("Failed to compute voxel-wise displacement."), waitCursor=True):
             
             logging.info(f"Reference Volume: {self._parameterNode.referenceVolume}")
+            logging.info(f"Background Volume: {self._parameterNode.backgroundVolume}")
             logging.info(f"Transform Node: {self._parameterNode.transformNode}")
-            # logging.info(f"Displacement Volume: {self._parameterNode.displacementMagnitudeVolume}")
 
-            #TODO: stop duplicates of displacement/jacobian
+            hoverWasEnabled = self.ui.enableHoverDisplayCheckbox.isChecked()
             
-            # Create displacement field (vector volume)
+            #  NEW: Reset background volume to have no transform
+            if self._parameterNode.backgroundVolume:
+                self._parameterNode.backgroundVolume.SetAndObserveTransformNodeID(None)
+                logging.info("Reset background volume transform to identity")
+            
+            # Create displacement field (for visualization)
             displacementVolume = self.logic.computeDisplacementMagnitude(
                 referenceVolume=self._parameterNode.referenceVolume,
                 transformNode=self._parameterNode.transformNode,
-                defaultColourMap=self.defaultColorNodeID
+                defaultColourMap=self.defaultColorNodeID,
+                scale=1.0
             )
-
-            # Create Jacobian  (vector volume)
+            
+            # Create Jacobian volume
             jacobianVolume = self.logic.computeJacobianMagnitude(
                 referenceVolume=self._parameterNode.referenceVolume,
                 transformNode=self._parameterNode.transformNode,
                 defaultColourMap=self.defaultColorNodeID
             )
             
-            # --- Make displacementMagnitude the thing we see + select in UI ---
-
-            # Ensure the magnitude volume has a display node
+            # Store original arrays for scaling
+            imageData = displacementVolume.GetImageData()
+            scalars = imageData.GetPointData().GetScalars()
+            self._fullDisplacementArray = vtk_to_numpy(scalars).copy()
+            
+            jacImageData = jacobianVolume.GetImageData()
+            jacScalars = jacImageData.GetPointData().GetScalars()
+            self._fullJacobianArray = vtk_to_numpy(jacScalars).copy()
+            
+            logging.info(f"Stored original arrays - Displacement range: [{self._fullDisplacementArray.min():.2f}, {self._fullDisplacementArray.max():.2f}]")
+            
+            # Apply transform to BOTH volumes so they update together spatially
+            transformNode = self._parameterNode.transformNode
+            
+            # UPDATED: Apply transform to background volume (now starting from identity)
+            self._parameterNode.backgroundVolume.SetAndObserveTransformNodeID(transformNode.GetID())
+            
+            # Apply transform to displacement magnitude volume
+            displacementVolume.SetAndObserveTransformNodeID(transformNode.GetID())
+            
+            # NEW: Reset transform scale to 100% (important!)
+            bsplineTransform = transformNode.GetTransformFromParent()
+            if bsplineTransform and hasattr(bsplineTransform, 'SetDisplacementScale'):
+                bsplineTransform.SetDisplacementScale(1.0)
+                logging.info("Reset transform scale to 100%")
+            
+            # Setup displacement volume display
             dispDisplay = displacementVolume.GetDisplayNode()
             if not dispDisplay:
                 displacementVolume.CreateDefaultDisplayNodes()
                 dispDisplay = displacementVolume.GetDisplayNode()
-
-            # Sensible W/L (lets Slicer compute it from data range)
+            
             if dispDisplay:
                 dispDisplay.AutoWindowLevelOn()
                 dispDisplay.SetScalarVisibility(True)
-
-
-
-            # displacementMagnitude by default
+            
+            # Set default selections
             if hasattr(self.ui, "loadedTransformVolume") and displacementVolume:
-                try:
-                    self.ui.loadedTransformVolume.nodeTypes = ['vtkMRMLScalarVolumeNode']
-                except Exception:
-                    pass  # already set in setup()
                 self.ui.loadedTransformVolume.setEnabled(True)
                 self.ui.loadedTransformVolume.setCurrentNode(displacementVolume)
-
-
-            # fMRI as default colour (unless one already preselected)
-            colorNode = None
-            if hasattr(self.ui, "colorMapSelector"):
-                colorNode = self.ui.colorMapSelector.currentNode()
+            
+            # Set default color
+            colorNode = self.ui.colorMapSelector.currentNode()
             if colorNode is None:
                 colorNode = slicer.util.getFirstNodeByClassByName('vtkMRMLColorTableNode', 'fMRI')
             
             self.ui.colorMapSelector.setEnabled(True)
             self.ui.colorMapSelector.setCurrentNode(colorNode)
             
-
-            # self.onLoadDisplacementVolume()
+            # Set background volume in slice views
+            slicer.util.setSliceViewerLayers(
+                background=self._parameterNode.backgroundVolume,
+                foreground=displacementVolume,
+                foregroundOpacity=self.ui.opacitySlider.value / 100
+            )
+            
+            # Load displacement visualization
             self.ui.loadedTransformVolume.setCurrentNode(displacementVolume)
             self.onLoadDisplacementVolume(flag=0)
+            
+            # UPDATED: Reset incremental slider to 100%
+            if hasattr(self.ui, 'incrementalSlider'):
+                self.isUpdatingSequence = True
+                self.ui.incrementalSlider.setValue(100)
+                self.ui.incrementalSlider.setEnabled(True)
+                self.isUpdatingSequence = False
+                logging.info("Reset incremental slider to 100%")
+            
+            # Store volumes for reference
+            self.displacementMagnitudeVolume = displacementVolume
+            self.jacobianVolume = jacobianVolume
 
+            if hoverWasEnabled:
+                # Small delay to ensure everything is set up
+                qt.QTimer.singleShot(100, lambda: self.ensureHoverDisplayActive())
+            
+            logging.info("Transform applied to both background and displacement volumes")
+
+
+
+    def createIncrementalSequence(self):
+        """
+        Create a sequence node containing 10 incrementally transformed volumes
+        (10%, 20%, ..., 100% of the full transformation).
+        """
+        if not self._parameterNode.backgroundVolume or not self._parameterNode.transformNode:
+            logging.warning("Missing background volume or transform for sequence creation.")
+            return
         
-            # colorNode = self.ui.colorMapSelector.currentNode()
-            # if colorNode and self._parameterNode.displacementMagnitudeVolume:
-            #     print("In 490!!!")
-            #     displayNode = self._parameterNode.displacementMagnitudeVolume.GetDisplayNode()
-            #     if displayNode:
-            #         displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+        logging.info("Creating incremental transformation sequence...")
+        
+        # Clean up existing sequence if present
+        if self.sequenceNode:
+            slicer.mrmlScene.RemoveNode(self.sequenceNode)
+            self.sequenceNode = None
+        if self.sequenceBrowserNode:
+            # Remove observer before deleting
+            if self.sequenceBrowserObserverTag:
+                self.sequenceBrowserNode.RemoveObserver(self.sequenceBrowserObserverTag)
+                self.sequenceBrowserObserverTag = None
+            slicer.mrmlScene.RemoveNode(self.sequenceBrowserNode)
+            self.sequenceBrowserNode = None
+        
+        # Create new sequence node
+        self.sequenceNode = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLSequenceNode",
+            f"{self._parameterNode.backgroundVolume.GetName()}_IncrementalSequence"
+        )
+        
+        # Create sequence browser node
+        self.sequenceBrowserNode = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLSequenceBrowserNode",
+            "IncrementalTransformBrowser"
+        )
+        
+        # IMPORTANT: Add synchronized sequence BEFORE generating volumes
+        self.sequenceBrowserNode.AddSynchronizedSequenceNode(self.sequenceNode)
+        
+        # Generate 10 incrementally transformed volumes
+        for i in range(1, 11):
+            scale = i * 0.1  # 0.1, 0.2, ..., 1.0
+            percentage = int(scale * 100)
+            
+            logging.info(f"Generating {percentage}% transformed volume...")
+            
+            # Create transformed volume at this scale
+            transformedVolume = self.logic.createIncrementalTransform(
+                backgroundVolume=self._parameterNode.backgroundVolume,
+                transformNode=self._parameterNode.transformNode,
+                scale=scale,
+                name=f"{self._parameterNode.backgroundVolume.GetName()}_{percentage}pct"
+            )
+            
+            # Add to sequence with percentage as index value
+            timeValue = str(percentage)
+            self.sequenceNode.SetDataNodeAtValue(transformedVolume, timeValue)
+            
+            # Remove the individual node from scene (sequence keeps a copy)
+            slicer.mrmlScene.RemoveNode(transformedVolume)
+        
+        # Set up sequence browser properties
+        self.sequenceBrowserNode.SetPlaybackRateFps(10)
+        self.sequenceBrowserNode.SetPlaybackActive(False)
+        self.sequenceBrowserNode.SetRecording(self.sequenceNode, False)
+        
+        # CRITICAL: Set initial item to 100% (index 9) BEFORE getting proxy node
+        self.sequenceBrowserNode.SetSelectedItemNumber(9)
+        
+        # CRITICAL: Get the proxy node - this is what gets displayed
+        proxyNode = self.sequenceBrowserNode.GetProxyNode(self.sequenceNode)
+        
+        if not proxyNode:
+            logging.error("Failed to get proxy node from sequence browser!")
+            return
+        
+        # Store proxy node for later use
+        self.sequenceProxyNode = proxyNode
+        
+        logging.info(f"Proxy node created: {proxyNode.GetName()}")
+        
+        # Set the proxy node as background in all slice views
+        layoutManager = slicer.app.layoutManager()
+        for sliceViewName in layoutManager.sliceViewNames():
+            compositeNode = layoutManager.sliceWidget(sliceViewName).mrmlSliceCompositeNode()
+            compositeNode.SetBackgroundVolumeID(proxyNode.GetID())
+            logging.info(f"Set {sliceViewName} background to proxy node")
+        
+        # Add observer to sync slider when sequence changes
+        self.sequenceBrowserObserverTag = self.sequenceBrowserNode.AddObserver(
+            vtk.vtkCommand.ModifiedEvent,
+            self.onSequenceBrowserIndexChanged
+        )
+        
+        logging.info(f"Created sequence with {self.sequenceNode.GetNumberOfDataNodes()} volumes")
 
+
+    def onSequenceBrowserIndexChanged(self, caller, event):
+        """
+        Called when sequence browser index changes (e.g., from toolbar controls).
+        Updates the slider to match.
+        """
+
+
+        if self.isUpdatingSequence:
+            return
+        
+        self.isUpdatingSequence = True
+        
+        try:
+            itemIndex = self.sequenceBrowserNode.GetSelectedItemNumber()
+            # Map index (0-9) to slider value (10-100)
+            sliderValue = (itemIndex + 1) * 10
+            
+            self.ui.incrementalSlider.blockSignals(True)
+            self.ui.incrementalSlider.setValue(sliderValue)
+            self.ui.incrementalSlider.blockSignals(False)
+            
+            logging.info(f"Sequence changed to item {itemIndex} ({sliderValue}%)")
+        finally:
+            self.isUpdatingSequence = False
 
 
     def createDisplacementIcon(self):
@@ -2176,7 +2513,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #print("Image Data", imageData)
         if imageData:
             minScalar, maxScalar = imageData.GetScalarRange()
-            defaultMinValue = minScalar + 0.02 * (maxScalar - minScalar) #Default minimum set to 2%
+            # defaultMinValue = minScalar + 0.009 * (maxScalar - minScalar) #Default minimum set to 2%
+            defaultMinValue = 0.009
             self.scalarRange = (float(minScalar), float(maxScalar))  # store exact range
             #print(f"min: {minScalar}, max: {maxScalar}")
             #print(defaultMinValue)
@@ -3106,10 +3444,11 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
 
 
     def computeDisplacementMagnitude(self,
-                                 referenceVolume: vtkMRMLScalarVolumeNode,
-                                 transformNode:   vtkMRMLTransformNode,
-                                 defaultColourMap: vtkMRMLColorTableNode
-                                 ) -> vtkMRMLScalarVolumeNode:
+                                referenceVolume: vtkMRMLScalarVolumeNode,
+                                transformNode:   vtkMRMLTransformNode,
+                                defaultColourMap: vtkMRMLColorTableNode,
+                                scale: float = 1.0
+                                ) -> vtkMRMLScalarVolumeNode:
         """
         Compute voxel-wise displacement magnitude from a BSpline transform.
         Returns a scalar volume node.
@@ -3160,14 +3499,22 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
             refImage.GetDirection()
         )
 
+        if scale != 1.0:
+            dispField = sitk.Multiply(dispField, scale)
+
         # Compute magnitude image
         dispMag = sitk.VectorMagnitude(dispField)
 
         # Push back to Slicer
+        volumeName = referenceVolume.GetName() + "_displacementMagnitude"
+        if scale != 1.0:
+            volumeName = f"{referenceVolume.GetName()}_displacement_{int(scale*100)}pct"
+            
         outputVolume = slicer.mrmlScene.AddNewNodeByClass(
             "vtkMRMLScalarVolumeNode",
-            referenceVolume.GetName() + "_displacementMagnitude"
+            volumeName
         )
+
         sitkUtils.PushVolumeToSlicer(dispMag, outputVolume)
 
         # add flag
@@ -3455,3 +3802,98 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         #print("Temporary label node removed. Done!")
 
         return newModelNode
+    
+
+    def createIncrementalTransform(self,
+                                    backgroundVolume: vtkMRMLScalarVolumeNode,
+                                    transformNode: vtkMRMLTransformNode,
+                                    scale: float,
+                                    name: str) -> vtkMRMLScalarVolumeNode:
+            """
+            Create a volume by applying a scaled version of the transform to the background volume.
+            
+            Args:
+                backgroundVolume: The volume to transform
+                transformNode: The transformation to apply
+                scale: Scale factor (0.0 to 1.0) for the transformation
+                name: Name for the output volume
+            
+            Returns:
+                Transformed volume node
+            """
+            import tempfile
+            import os
+            
+            # Get background image as SimpleITK
+            bgImage = sitkUtils.PullVolumeFromSlicer(backgroundVolume)
+            
+            # Write transform to temporary file
+            with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
+                tmpPath = tmp.name
+            
+            slicer.util.saveNode(transformNode, tmpPath)
+            
+            # Read into SimpleITK
+            itkTx = sitk.ReadTransform(tmpPath)
+            os.remove(tmpPath)
+            
+            # Convert to displacement field
+            dispField = sitk.TransformToDisplacementField(
+                itkTx,
+                sitk.sitkVectorFloat32,
+                bgImage.GetSize(),
+                bgImage.GetOrigin(),
+                bgImage.GetSpacing(),
+                bgImage.GetDirection()
+            )
+            
+            # Scale the displacement field
+            components = [
+                sitk.VectorIndexSelectionCast(dispField, i)
+                for i in range(dispField.GetNumberOfComponentsPerPixel())
+            ]
+
+            # Scale each component
+            components = [sitk.Multiply(c, scale) for c in components]
+
+            scaledDispField = sitk.Compose(components)
+            scaledDispField.CopyInformation(dispField)
+
+            scaledDispField = sitk.Cast(scaledDispField, sitk.sitkVectorFloat64)
+
+            # Convert displacement field back to transform
+            scaledTransform = sitk.DisplacementFieldTransform(scaledDispField)
+            
+            # Apply scaled transform to background volume
+            resampler = sitk.ResampleImageFilter()
+            resampler.SetReferenceImage(bgImage)
+            resampler.SetTransform(scaledTransform)
+            resampler.SetInterpolator(sitk.sitkLinear)
+            resampler.SetDefaultPixelValue(0)
+            
+            transformedImage = resampler.Execute(bgImage)
+            
+            # Create output volume node
+            outputVolume = slicer.mrmlScene.AddNewNodeByClass(
+                "vtkMRMLScalarVolumeNode",
+                name
+            )
+            
+            # Push back to Slicer
+            sitkUtils.PushVolumeToSlicer(transformedImage, outputVolume)
+            
+            # Copy display properties from background volume
+            bgDisplay = backgroundVolume.GetDisplayNode()
+            if bgDisplay:
+                outputDisplay = outputVolume.GetDisplayNode()
+                if not outputDisplay:
+                    outputVolume.CreateDefaultDisplayNodes()
+                    outputDisplay = outputVolume.GetDisplayNode()
+                
+                if outputDisplay:
+                    outputDisplay.SetAndObserveColorNodeID(bgDisplay.GetColorNodeID())
+                    outputDisplay.SetWindow(bgDisplay.GetWindow())
+                    outputDisplay.SetLevel(bgDisplay.GetLevel())
+            
+            return outputVolume
+        
