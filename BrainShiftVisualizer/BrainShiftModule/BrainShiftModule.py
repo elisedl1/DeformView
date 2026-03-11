@@ -1142,34 +1142,72 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.opacityValue.setText(f"{value:.0f}%")
 
 
+
+
     def onIncrementalChanged(self, value: int) -> None:
         """
         Called when incremental slider changes.
         Scales the transform displacement AND the displacement magnitude values.
+        Only works for B-spline transforms that support SetDisplacementScale.
         """
         if self.isUpdatingSequence:
             return
         
         if not self._parameterNode or not self._parameterNode.transformNode:
-            logging.warning("No transform available for incremental display.")
+            slicer.util.warningDisplay(
+                "No transform is currently loaded.\n\n"
+                "Please compute the displacement field first by clicking 'Compute Mapping'."
+            )
+            # Reset slider to 100%
+            self.isUpdatingSequence = True
+            self.ui.incrementalSlider.setValue(100)
+            self.ui.incrementalSlider.setEnabled(False)
+            self.isUpdatingSequence = False
             return
         
-        # Convert slider value (10-100) to scale (0.1-1.0)
+        # Convert slider value (0-100) to scale (0.0-1.0)
         scale = value / 100.0
         if scale == 0:
             scale = 0.0001
         
-        # Get the BSpline transform
+        # Get the transform
         transformNode = self._parameterNode.transformNode
         bsplineTransform = transformNode.GetTransformFromParent()
         
         if not bsplineTransform:
-            logging.warning("Could not get transform from parent.")
+            slicer.util.warningDisplay(
+                "Could not access the transform.\n\n"
+                "Please ensure a valid transform has been computed."
+            )
+            # Reset slider and disable
+            self.isUpdatingSequence = True
+            self.ui.incrementalSlider.setValue(100)
+            self.ui.incrementalSlider.setEnabled(False)
+            self.isUpdatingSequence = False
             return
         
         # Check if it has SetDisplacementScale method
         if not hasattr(bsplineTransform, 'SetDisplacementScale'):
-            logging.warning("Transform does not support displacement scaling.")
+            transformType = bsplineTransform.GetClassName()
+            
+            slicer.util.warningDisplay(
+                f"Incremental Scaling Not Supported\n\n"
+                f"The current transform type ({transformType}) does not support incremental scaling.\n\n"
+                f"Incremental scaling is only available for B-spline transforms.\n\n"
+                f"The slider has been disabled."
+            )
+            
+            # Disable the slider and reset to 100%
+            self.isUpdatingSequence = True
+            self.ui.incrementalSlider.setValue(100)
+            self.ui.incrementalSlider.setEnabled(False)
+            self.ui.incrementalSlider.setToolTip(
+                f"Incremental scaling is not supported for {transformType} transforms.\n"
+                "Only B-spline transforms support this feature."
+            )
+            self.isUpdatingSequence = False
+            
+            logging.warning(f"Incremental scaling not supported for transform type: {transformType}")
             return
         
         # Apply the scale to the transform (updates spatial positions)
@@ -2220,25 +2258,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Sync with UI
         if selectedVolume:
             self.ui.loadedTransformVolume.setCurrentNode(selectedVolume)
-                
-        # first try: get current node from combo box (if anything was there)
-        #selectedVolume = self.ui.loadedTransformVolume.currentNode()
-
-        # # second: if nothing selected, find it by suffix
-        # if not selectedVolume:
-        #     suffix = "_displacementMagnitude" if flag == 0 else "_jacobianMagnitude"
-        #     scene = slicer.mrmlScene
-        #     for i in range(scene.GetNumberOfNodesByClass("vtkMRMLScalarVolumeNode")):
-        #         node = scene.GetNthNodeByClass(i, "vtkMRMLScalarVolumeNode")
-        #         if node.GetName() and suffix in node.GetName():
-        #             selectedVolume = node
-        #             break
         
-
-
-        #     # sync with UI so all other code works
-        #     if selectedVolume:
-        #         self.ui.loadedTransformVolume.setCurrentNode(selectedVolume)
 
         #  nothing found? show error and return
         if not selectedVolume or not selectedVolume.GetDisplayNode():
@@ -2252,6 +2272,46 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             slicer.util.errorDisplay("Please select a volume before loading.")
             return
         
+
+        # reset incremental slider to 100% when loading visualization
+        if hasattr(self.ui, 'incrementalSlider') and self.ui.incrementalSlider.isEnabled():
+            self.isUpdatingSequence = True
+            self.ui.incrementalSlider.setValue(100)
+            self.isUpdatingSequence = False
+            
+            # Reset the transform scale to 1.0
+            if self._parameterNode and self._parameterNode.transformNode:
+                transformNode = self._parameterNode.transformNode
+                bsplineTransform = transformNode.GetTransformFromParent()
+                if bsplineTransform and hasattr(bsplineTransform, 'SetDisplacementScale'):
+                    bsplineTransform.SetDisplacementScale(1.0)
+                    transformNode.Modified()
+                    logging.info("Reset transform displacement scale to 100%")
+
+        # restore full arrays when switching between visualizations
+        if flag == 0 and hasattr(self, '_fullDisplacementArray') and self._fullDisplacementArray is not None:
+            # Restore full displacement array
+            imageData = selectedVolume.GetImageData()
+            if imageData:
+                scalars = imageData.GetPointData().GetScalars()
+                numpy_scalars = vtk_to_numpy(scalars)
+                numpy_scalars[:] = self._fullDisplacementArray
+                scalars.Modified()
+                imageData.Modified()
+                selectedVolume.Modified()
+                logging.info("Restored full displacement magnitude array")
+            
+        elif flag == 1 and hasattr(self, '_fullJacobianArray') and self._fullJacobianArray is not None:
+            # Restore full Jacobian array
+            imageData = selectedVolume.GetImageData()
+            if imageData:
+                scalars = imageData.GetPointData().GetScalars()
+                numpy_scalars = vtk_to_numpy(scalars)
+                numpy_scalars[:] = self._fullJacobianArray
+                scalars.Modified()
+                imageData.Modified()
+                selectedVolume.Modified()
+                logging.info("Restored full Jacobian array")
 
 
         usVolume = self.ui.referenceVolume.currentNode()
@@ -2281,29 +2341,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         numDisplayNodes = selectedVolume.GetNumberOfDisplayNodes() 
         
         currentColorNode = internalDisplayNode.GetColorNode()
-        # print("currentColorNode", currentColorNode)
-        # print(f"Number of display nodes: {numDisplayNodes}")
-        # print("Update 1")
-        # change to selected color
-        
-        #HERE!
-        #if not currentColorNode:
-        # print(f"First time loading - auto-setting color map (flag={flag})")
-        # 
-        # if not flag and self.firstTimeFlag0: 
-        #     #self.ui.colorMapSelector.setCurrentNode(self.defaultColorNodeID) #cold to hot rainbow
-        #     colorNode = slicer.util.getNode(self.defaultColorNodeID)
-        #     self.firstTimeFlag0 = False
 
-        # elif flag == 1 and self.firstTimeFlag1:
-        #     print("First time loading Jacobian (flag=1) - setting JacobianMap")
-        #     colorNode = slicer.util.getNode("JacobianMap")
-        #     self.firstTimeFlag1 = False
-        
-        # else:
-        #     # Not first time for this flag type - use current selection
-        #     print(f"Already loaded this type before - using current selection")
-        #     colorNode = self.ui.colorMapSelector.currentNode()
         self.initializeWindowLevelControls(selectedVolume)
 
         if self.lastLoadedFlag is None or self.lastLoadedFlag != flag:
