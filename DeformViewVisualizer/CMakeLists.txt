@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.16.3...3.19.7 FATAL_ERROR)
 
-project(BrainShiftVisualizer)
+project(DeformViewVisualizer)
 
 #-----------------------------------------------------------------------------
 # Extension meta-information
-set(EXTENSION_HOMEPAGE "https://www.slicer.org/wiki/Documentation/Nightly/Extensions/BrainShiftVisualizer")
+set(EXTENSION_HOMEPAGE "https://www.slicer.org/wiki/Documentation/Nightly/Extensions/DeformViewVisualizer")
 set(EXTENSION_CONTRIBUTORS "John Doe (AnyWare Corp.)")
 set(EXTENSION_DESCRIPTION "This is an example of a simple extension")
-set(EXTENSION_ICONURL "https://www.example.com/Slicer/Extensions/BrainShiftVisualizer.png")
-set(EXTENSION_SCREENSHOTURLS "https://www.example.com/Slicer/Extensions/BrainShiftVisualizer/Screenshots/1.png")
+set(EXTENSION_ICONURL "https://www.example.com/Slicer/Extensions/DeformViewVisualizer.png")
+set(EXTENSION_SCREENSHOTURLS "https://www.example.com/Slicer/Extensions/DeformViewVisualizer/Screenshots/1.png")
 set(EXTENSION_DEPENDS "NA") # Specified as a list or "NA" if no dependencies
 
 #-----------------------------------------------------------------------------
@@ -18,7 +18,7 @@ include(${Slicer_USE_FILE})
 
 #-----------------------------------------------------------------------------
 # Extension modules
-add_subdirectory(BrainShiftModule)
+add_subdirectory(DeformView)
 ## NEXT_MODULE
 
 #-----------------------------------------------------------------------------

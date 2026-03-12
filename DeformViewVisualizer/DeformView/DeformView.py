@@ -30,7 +30,7 @@ import logging
 
 
 #
-# BrainShiftModule
+# DeformView
 #
 def setCrosshairColor(colorRGB):
     layoutManager = slicer.app.layoutManager()
@@ -44,30 +44,30 @@ def setCrosshairColor(colorRGB):
             dm.SetCrosshairColor(colorRGB)
 
 
-class BrainShiftModule(ScriptedLoadableModule):
+class DeformView(ScriptedLoadableModule):
     """Uses ScriptedLoadableModule base class, available at:
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
     """
 
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = _("BrainShiftModule")
+        self.parent.title = _("DeformView")
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Examples")]
         self.parent.dependencies = [] 
         self.parent.contributors = [" Isabel Frolick (McGill), Elise Donszelmann-Lund (McGill)"]  
         self.parent.helpText = _("""
             Dense deformation visualization module.
-            See more information in <a href="https://github.com/organization/projectname#BrainShiftModule">module documentation</a>.
+            See more information in <a href="https://github.com/organization/projectname#DeformView">module documentation</a>.
             """)
         self.parent.acknowledgementText = _(""" """)
 
 #
-# BrainShiftModuleParameterNode
+# DeformViewParameterNode
 #
 
 
 @parameterNodeWrapper
-class BrainShiftModuleParameterNode:
+class DeformViewParameterNode:
     """
     The parameters needed by module.
 
@@ -86,11 +86,11 @@ class BrainShiftModuleParameterNode:
 
 
 #
-# BrainShiftModuleWidgeto
+# DeformViewWidgeto
 #
 
 
-class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
+class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     """Uses ScriptedLoadableModuleWidget base class, available at:
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
     """
@@ -146,7 +146,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         # === LOAD UI FILE ===
 
-        uiWidget = slicer.util.loadUI(self.resourcePath("UI/BrainShiftModule.ui"))
+        uiWidget = slicer.util.loadUI(self.resourcePath("UI/DeformView.ui"))
         self.layout.addWidget(uiWidget)
         self.ui = slicer.util.childWidgetVariables(uiWidget)
         # Hide the uiWidget so it doesn't take up space
@@ -234,7 +234,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # mouse displayer
         self.crosshairNode = slicer.util.getNode("Crosshair")
 
-        # self.labelMarkupNode = slicer.util.getModule("Data").mrmlScene().GetFirstNodeByName("BrainShiftModule_MouseValueLabel")
+        # self.labelMarkupNode = slicer.util.getModule("Data").mrmlScene().GetFirstNodeByName("DeformView_MouseValueLabel")
         #Need to dynamically set the labelMarkupNode, depending on which label is being loaded by loadDisplacementVolume
         #Set to None initially so it can be created dynamically?
 
@@ -319,7 +319,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #self.ui.LoadExpertLabelsButton.pressed.connect(self.onLoadExpertLabelsClicked)
         # Create logic class. Logic implements all computations that should be possible to run
         # in batch mode, without a graphical user interface.
-        self.logic = BrainShiftModuleLogic()
+        self.logic = DeformViewLogic()
 
         # Connections
         # These connections ensure that we update parameter node when scene is closed
@@ -888,7 +888,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             return
         
         # Get the shared label node
-        labelNodeName = "BrainShiftModule_MouseValueLabel"
+        labelNodeName = "DeformView_MouseValueLabel"
         labelNode = slicer.mrmlScene.GetFirstNodeByName(labelNodeName)
         
         if not labelNode:
@@ -898,11 +898,11 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         # Reset the label node for the new volume
         # Check if this volume already has a stored reference
-        labelNodeID = volumeNode.GetAttribute("BrainShiftModule_LabelNodeID")
+        labelNodeID = volumeNode.GetAttribute("DeformView_LabelNodeID")
         
         if not labelNodeID or labelNodeID != labelNode.GetID():
             # Associate the shared label node with this volume
-            volumeNode.SetAttribute("BrainShiftModule_LabelNodeID", labelNode.GetID())
+            volumeNode.SetAttribute("DeformView_LabelNodeID", labelNode.GetID())
         
         # Reset label display
         labelNode.SetNthControlPointLabel(0, "")
@@ -920,7 +920,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         volumeNode = self.ui.loadedTransformVolume.currentNode()
         
         # Get or create the single shared label node
-        labelNodeName = "BrainShiftModule_MouseValueLabel"
+        labelNodeName = "DeformView_MouseValueLabel"
         node = slicer.mrmlScene.GetFirstNodeByName(labelNodeName)
         # node.GetDisplayNode().SetGlyphScale(8)
         #print("label exists")
@@ -941,7 +941,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             node.GetDisplayNode().GetTextProperty().SetColor(0.0, 0.0, 0.0)
         
         # Store reference on volume
-        # volumeNode.SetAttribute("BrainShiftModule_LabelNodeID", node.GetID())
+        # volumeNode.SetAttribute("DeformView_LabelNodeID", node.GetID())
         
         return node
         
@@ -1821,7 +1821,7 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.selectedLandmarks.setText(f"{activeLabel}  ↔  {pairLabel}")
 
 
-    def setParameterNode(self, inputParameterNode: Optional[BrainShiftModuleParameterNode]) -> None:
+    def setParameterNode(self, inputParameterNode: Optional[DeformViewParameterNode]) -> None:
         """
         Set and observe parameter node.
         Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
@@ -3307,8 +3307,8 @@ class BrainShiftModuleWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.thresholdSlider.setValues(currentMin, value)
 
 
-# BrainShiftModuleLogic
-class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
+# DeformViewLogic
+class DeformViewLogic(ScriptedLoadableModuleLogic):
     """Logic for computing voxel-wise displacement from transformation field"""
 
     def __init__(self) -> None:
@@ -3316,7 +3316,7 @@ class BrainShiftModuleLogic(ScriptedLoadableModuleLogic):
         ScriptedLoadableModuleLogic.__init__(self)
 
     def getParameterNode(self):
-        return BrainShiftModuleParameterNode(super().getParameterNode())
+        return DeformViewParameterNode(super().getParameterNode())
     
     def countUniqueValues(self, volumeNode: vtkMRMLScalarVolumeNode):
 
