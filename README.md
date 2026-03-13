@@ -1,4 +1,5 @@
 # DeformView
+
 ## Overview
 **DeformView** provides **intuitive, quantitative visualization of non-linear deformation fields** within the 3D Slicer platform.  
 It enables users to interpret deformations using **dense, voxel-wise maps**, given a known transformation and corresponding image data.
@@ -102,3 +103,9 @@ Download and install **3D Slicer** from the official website: [https://www.slice
 ## Contributors
 - Elise Donszelmann-Lund (@elisedl1)
 - Isabel Frolick (@isabelfrolick)
+
+---
+
+To cite this work:
+
+Isabel Frolick, Elise Donszelmann-Lund, raph-rc, Étienne Léger, & TC2423. (2026). elisedl1/DeformView: DeformView (1.0). Zenodo. https://doi.org/10.5281/zenodo.19008734
