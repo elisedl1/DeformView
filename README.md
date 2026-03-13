@@ -109,3 +109,6 @@ Download and install **3D Slicer** from the official website: [https://www.slice
 To cite this work:
 
 Isabel Frolick, Elise Donszelmann-Lund, raph-rc, Étienne Léger, & TC2423. (2026). elisedl1/DeformView: DeformView (1.0). Zenodo. https://doi.org/10.5281/zenodo.19008734
+
+[![DOI](https://zenodo.org{{ 10.5281 }}.svg)](https://doi.org/{{ 19008734 }})
+
