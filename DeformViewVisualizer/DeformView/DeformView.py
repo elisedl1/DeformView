@@ -33,6 +33,7 @@ import logging
 # DeformView
 #
 def setCrosshairColor(colorRGB):
+    print("In setCrosshair Colour")
     layoutManager = slicer.app.layoutManager()
     sliceViewNames = slicer.util.getSliceViewNames()  # ['Red', 'Yellow', 'Green']
     
@@ -399,30 +400,10 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-    def setupWithResourcePath(self):
-        """Alternative approach using module resource path"""
-        
-        # Get icon path relative to module resources
-        iconPath = os.path.join(
-            os.path.dirname(self.resourcePath("")),
-            "Resources",
-            "Icons",
-            "jacobian_icon.png"
-        )
-        
-        
-        if os.path.exists(iconPath):
-            icon = qt.QIcon(iconPath)
-            self.ui.loadDisplacementButton.setIcon(icon)
-            self.ui.loadDisplacementButton.setIconSize(qt.QSize(80, 50))
-            
-            # Make the button larger to accommodate icon
-            self.ui.loadDisplacementButton.setMinimumSize(180, 60)
-        else:
-            logging.warning(f"Icon file not found at: {iconPath}")
 
-
-
+    # ╔══════════════════════════════════════╗
+    # ║      COLOUR MAP FUNCTIONALITY        ║
+    # ╚══════════════════════════════════════╝
 
     def enableVTKErrorTracking(self):
         """Enable detailed VTK error tracking with stack traces"""
@@ -442,8 +423,6 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         # You can also observe specific objects
         return errorCallback
-    
-
 
     def resetBuiltInColorNodes(self):
         """Reset built-in color nodes to defaults while preserving existing volume color assignments"""
@@ -473,76 +452,6 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                     if colorNode:
                         dispNode.SetAndObserveColorNodeID(colorNode.GetID())
 
-
-
-   
-    
-    def cleanupCorruptedColormaps(self, name_str, type_str):
-        """
-        Remove corrupted/empty color nodes and recreate them properly.
-        Returns True if node was created/recreated, False if already valid.
-        """
-        print(f"Checking {name_str}...")
-        
-        # Find the node
-        node = slicer.mrmlScene.GetFirstNodeByName(name_str)
-        
-        # Case 1: Node doesn't exist - create it
-        if not node:
-            print(f"  {name_str} doesn't exist, creating...")
-            self.create_colour_node(name_str, type_str)
-            return True  # We created it
-        
-        # Case 2: Node exists - check if it's corrupted
-        is_corrupted = False
-        
-        # Check 1: Is it a procedural node when it should be a table node?
-        if node.GetClassName() == "vtkMRMLProceduralColorNode":
-            print(f"  {name_str} is procedural node (should be color table)")
-            is_corrupted = True
-        
-        # Check 2: Does it have a valid lookup table?
-        if hasattr(node, 'GetLookupTable'):
-            lut = node.GetLookupTable()
-            if not lut or lut.GetNumberOfTableValues() == 0:
-                print(f"  {name_str} has no lookup table")
-                is_corrupted = True
-            else:
-                # Check if all colors are black (empty/corrupted)
-                all_black = True
-                for i in range(min(10, lut.GetNumberOfTableValues())):
-                    rgba = lut.GetTableValue(i)
-                    if rgba[0] > 0.01 or rgba[1] > 0.01 or rgba[2] > 0.01:
-                        all_black = False
-                        break
-                
-                if all_black:
-                    print(f"  {name_str} has all-black colors (corrupted)")
-                    is_corrupted = True
-        
-        # Check 3: Does it have any colors defined?
-        if hasattr(node, 'GetNumberOfColors'):
-            num_colors = node.GetNumberOfColors()
-            if num_colors == 0:
-                print(f"  {name_str} has 0 colors")
-                is_corrupted = True
-        
-        # Case 3: If corrupted, remove and recreate
-        if is_corrupted:
-            print(f"  Removing corrupted {name_str}")
-            slicer.mrmlScene.RemoveNode(node)
-            print(f"  Recreating {name_str}")
-            self.create_colour_node(name_str, type_str)
-            return True  # We recreated it
-        
-        # Case 4: Node exists and is valid
-        print(f"  ✓ {name_str} is valid")
-        node.SetAttribute("MyColourMaps", "1")
-        return False  # No changes needed
-
-
-
-    
     def selectColourMap(self):
         """
         Set up the color map selector with available colormaps.
@@ -607,87 +516,6 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if HotToColdRainbowNode:
             self.ui.colorMapSelector.setCurrentNode(HotToColdRainbowNode)
             
-        
-
-    
-
-    def diagnose_colormap_application(self, volumeNode):
-        """
-        Diagnose why the colormap isn't showing correctly
-        # """
-        # print("\n=== COLORMAP DIAGNOSTIC ===")
-        
-        if not volumeNode:
-            print("No volume node!")
-            return
-        
-        print(f"Volume: {volumeNode.GetName()}")
-        
-        # Check image data
-        imageData = volumeNode.GetImageData()
-        if imageData:
-            scalarRange = imageData.GetScalarRange()
-            numComponents = imageData.GetNumberOfScalarComponents()
-            # print(f"  Scalar range: {scalarRange}")
-            # print(f"  Components: {numComponents}")
-        
-        # Check display node
-        displayNode = volumeNode.GetDisplayNode()
-        if not displayNode:
-            print("  ERROR: No display node!")
-            return
-        
-        print(f"  Display node exists: Yes")
-        
-        # Check color node
-        colorNodeID = displayNode.GetColorNodeID()
-        if not colorNodeID:
-            print("  ERROR: No color node ID set!")
-            return
-        
-        print(f"  Color node ID: {colorNodeID}")
-        
-        colorNode = slicer.mrmlScene.GetNodeByID(colorNodeID)
-        if not colorNode:
-            print("  ERROR: Color node not found in scene!")
-            return
-        
-        print(f"  Color node: {colorNode.GetName()}")
-        print(f"  Color node type: {colorNode.GetClassName()}")
-        
-        # Check lookup table
-        if hasattr(colorNode, 'GetLookupTable'):
-            lut = colorNode.GetLookupTable()
-            if lut:
-                lutRange = lut.GetRange()
-                print(f"  LUT range: {lutRange}")
-                print(f"  LUT entries: {lut.GetNumberOfTableValues()}")
-            else:
-                print("  ERROR: No lookup table!")
-        
-        # Check window/level settings
-        window = displayNode.GetWindow()
-        level = displayNode.GetLevel()
-        # print(f"  Window: {window}")
-        # print(f"  Level: {level}")
-        
-        # Check if auto window/level is on
-        autoWL = displayNode.GetAutoWindowLevel()
-        # print(f"  Auto window/level: {autoWL}")
-        
-        # Check scalar range on display node
-        displayScalarRange = displayNode.GetScalarRange()
-        # print(f"  Display scalar range: {displayScalarRange}")
-        
-        # Check color mapping
-        colorMapping = displayNode.GetScalarRangeFlag()
-        # print(f"  Scalar range flag: {colorMapping}")
-        # print(f"    0 = Manual, 1 = Use color node scalar range, 2 = Use data scalar range")
-        
-        # print("=== END DIAGNOSTIC ===\n")
-
-
-
     def verify_colormap(self, colorNodeName):
         """
         Verify a colormap has a valid lookup table
@@ -715,57 +543,6 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         else:
             print("No GetLookupTable method")
             return False
-
-# Test it:
-
-    def create_colour_table_from_matplotlib(self, name_str, cmap_name, num_colors=256):
-        """
-        Alternative: Create a ColorTableNode (discrete) instead of ProceduralColorNode.
-        This can sometimes work better for certain display nodes.
-        """
-        try:
-            import matplotlib
-            import matplotlib.pyplot as plt
-            import numpy as np
-
-        except ImportError:
-            print("Matplotlib not available.")
-            return None
-        
-        # Remove existing node
-        node = slicer.mrmlScene.GetFirstNodeByName(f"{name_str}")
-        # if node:
-        #     slicer.mrmlScene.RemoveNode(node)
-        
-        # Get matplotlib colormap
-        try:
-            mpl_cmap = matplotlib.colormaps[cmap_name].resampled(num_colors)
-        except:
-            mpl_cmap = plt.cm.get_cmap(cmap_name, num_colors)
-        
-        # Get RGBA values
-        colors_rgba = mpl_cmap(np.linspace(0, 1, num_colors))
-        
-        # Create color table node (discrete)
-        colorNode = slicer.vtkMRMLColorTableNode()
-        colorNode.SetTypeToUser()  # User-defined color table
-        colorNode.SetNumberOfColors(num_colors)
-        colorNode.SetName(name_str)
-        colorNode.SetAttribute("Category", "Matplotlib")
-        
-        # Set each color
-        for i, (r, g, b, a) in enumerate(colors_rgba):
-            colorNode.SetColor(i, f"color_{i}", r, g, b, a)
-        
-        # Add to scene
-        slicer.mrmlScene.AddNode(colorNode)
-        colorNode.SetAttribute("MyColourMaps", "1")
-        
-        return colorNode
-
-
-
-    
 
     def create_colour_node(self, name_str, node_ID=None, use_table=False):
         """
@@ -844,110 +621,101 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
      
         return node
 
-
-    def create_matplotlib_colormaps_only(self):
+    def cleanupDuplicateColorNodes(self, nodeName):
         """
-        Create matplotlib colormaps during setup WITHOUT modifying any volumes.
-        Only creates the color nodes if they don't already exist.
+        Remove all but the first instance of a color node
         """
-        matplotlib_maps = {
-            'Viridis': 'viridis',
-            'Plasma': 'plasma', 
-            'Inferno': 'inferno',
-            'Magma': 'magma',
-            'Cividis': 'cividis',
-        }
+        allNodes = slicer.mrmlScene.GetNodesByName(nodeName)
+        allNodes.InitTraversal()
         
-        for name, mpl_name in matplotlib_maps.items():
-            # Check if it already exists
-            existing = slicer.mrmlScene.GetFirstNodeByName(name)
-            if existing:
-                #print(f"Colormap {name} already exists, skipping")
-                continue
-            
-            # Create it
-            try:
-                node = self.create_colour_node_from_matplotlib(name, mpl_name)
-                if node:
-                    print(f"Created {name}")
-            except Exception as e:
-                print(f"Failed to create {name}: {e}")
-
-
-
-   
-
-    def onTransformVolumeChanged(self):
-        """Called whenever a different volume is selected in loadedTransformVolume"""
-       
-        volumeNode = self.ui.loadedTransformVolume.currentNode()
-        # print(f"=== onTransformVolumeChanged called with node: {volumeNode}")
-        # print(f"  - setup complete? {hasattr(self, 'logic')}")
-        # print(f"  - labelMarkupNode exists? {hasattr(self, 'labelMarkupNode')}")
-        if not volumeNode:
-            return
+        nodes_to_remove = []
+        first_node = None
         
-        # Get the shared label node
-        labelNodeName = "DeformView_MouseValueLabel"
-        labelNode = slicer.mrmlScene.GetFirstNodeByName(labelNodeName)
+        for i in range(allNodes.GetNumberOfItems()):
+            node = allNodes.GetNextItemAsObject()
+            if i == 0:
+                first_node = node
+                # print(f"Keeping {nodeName} (ID: {node.GetID()})")
+            else:
+                nodes_to_remove.append(node)
+                # print(f"Will remove duplicate {nodeName} (ID: {node.GetID()})")
         
-        if not labelNode:
-            # Create it if it doesn't exist
-            self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
-            return
+        # Remove duplicates
+        for node in nodes_to_remove:
+            slicer.mrmlScene.RemoveNode(node)
         
-        # Reset the label node for the new volume
-        # Check if this volume already has a stored reference
-        labelNodeID = volumeNode.GetAttribute("DeformView_LabelNodeID")
-        
-        if not labelNodeID or labelNodeID != labelNode.GetID():
-            # Associate the shared label node with this volume
-            volumeNode.SetAttribute("DeformView_LabelNodeID", labelNode.GetID())
-        
-        # Reset label display
-        labelNode.SetNthControlPointLabel(0, "")
-        labelNode.SetNthControlPointPosition(0, 0, 0, 0)
-        
-        # Update the reference
-        self.labelMarkupNode = labelNode
-
-
-
-    #Creates the label node for the cursor
-    def getOrCreateLabelNodeForCurrentVolume(self):
-        """Get or create a label node specific to the currently loaded volume"""
-        
-        volumeNode = self.ui.loadedTransformVolume.currentNode()
-        
-        # Get or create the single shared label node
-        labelNodeName = "DeformView_MouseValueLabel"
-        node = slicer.mrmlScene.GetFirstNodeByName(labelNodeName)
-        # node.GetDisplayNode().SetGlyphScale(8)
-        #print("label exists")
-        #if it doesn't exist or 
-        if not node: #or not node.GetDisplayNode().GetVisibility2D():
-            node = slicer.mrmlScene.AddNewNodeByClass(
-                "vtkMRMLMarkupsFiducialNode",
-                labelNodeName
-            )
-            node.AddControlPoint(0, 0, 0)
-            node.SetLocked(True)
-            node.SetMarkupLabelFormat("{label}")
-            node.GetDisplayNode().SetVisibility2D(False)
-            node.GetDisplayNode().SetVisibility3D(False)
-            node.SetNthControlPointLabel(0, "")
-            node.GetDisplayNode().SetColor([0.0, 0.0, 0.0])
-            node.GetDisplayNode().SetSelectedColor([0.0, 0.0, 0.0])
-            node.GetDisplayNode().GetTextProperty().SetColor(0.0, 0.0, 0.0)
-        
-        # Store reference on volume
-        # volumeNode.SetAttribute("DeformView_LabelNodeID", node.GetID())
-        
-        return node
-        
-
+        return first_node
     
+    def removeAllNamedNode(self, nodeName):
+            
+        """
+        Remove all but the first instance of a color node
+        """
+        allNodes = slicer.mrmlScene.GetNodesByName(nodeName)
+        
+        # existingNode = slicer.mrmlScene.GetFirstNodeByName(nodeName)
+        # if existingNode:
+        #     slicer.mrmlScene.RemoveNode(existingNode)
+        #     print("removed JacobianMap")
 
+        allNodes.InitTraversal()
+        
+        nodes_to_remove = []
+        first_node = None
+        
+        for i in range(allNodes.GetNumberOfItems()):
+            node = allNodes.GetNextItemAsObject()
+            nodes_to_remove.append(node)
+            # print(f"Will remove duplicate {nodeName} (ID: {node.GetID()})")
+        
+        # Remove duplicates
+        for node in nodes_to_remove:
+            slicer.mrmlScene.RemoveNode(node)
+        
+        #return first_node
+
+    def createJacobianColorNode(self):
+        """
+        Create Jacobian colormap - only once, reuse if exists
+        """
+        existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
+        
+        if existingNode:
+            existingNode.SetAttribute("MyColourMaps", "1")
+            return existingNode
+
+        # print("Creating new JacobianMap")
+        
+        colorNode = slicer.vtkMRMLColorTableNode()
+        colorNode.SetName("JacobianMap")
+        colorNode.SetAttribute("DisplayName", "Jacobian (Compression/Expansion)")
+        colorNode.SetAttribute("MyColourMaps", "1")
+        colorNode.SetTypeToUser()
+        colorNode.SetNumberOfColors(3)
+        colorNode.SetNoName("")
+        colorNode.SetSingletonTag("JacobianMap")
+
+        
+        # Set only two colors
+        colorNode.SetColor(0, 0.0, 0.0, 1.0, 1.0)  # Blue for contracting, index 0
+        colorNode.SetColorName(0, "Contracting")
+
+        colorNode.SetColor(1, 1.0, 1.0, 1.0, 1.0)  # White for no change, index 1
+        colorNode.SetColorName(1, "No Change")
+        
+        colorNode.SetColor(2, 1.0, 0.0, 0.0, 1.0)  # Red for expanding, index 2
+        colorNode.SetColorName(2, "Expanding")
+                
+        slicer.mrmlScene.AddNode(colorNode)
+
+        return colorNode
+
+
+
+
+    # ╔══════════════════════════════════════╗
+    # ║          UI                          ║
+    # ╚══════════════════════════════════════╝
 
     def UIinstance(self):
         # === SECTION 1: IMAGES LOADING ===
@@ -1128,967 +896,6 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.layout.addStretch(1)
 
 
-        
-
-
-        
-
-
-
-
-    def onOpacityChanged(self, value) -> None:
-        normalizedValue = value/100
-        slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
-        self.ui.opacityValue.setText(f"{value:.0f}%")
-
-
-
-
-    def onIncrementalChanged(self, value: int) -> None:
-        """
-        Called when incremental slider changes.
-        Scales the transform displacement AND the displacement magnitude values.
-        Only works for B-spline transforms that support SetDisplacementScale.
-        """
-        if self.isUpdatingSequence:
-            return
-        
-        if not self._parameterNode or not self._parameterNode.transformNode:
-            slicer.util.warningDisplay(
-                "No transform is currently loaded.\n\n"
-                "Please compute the displacement field first by clicking 'Compute Mapping'."
-            )
-            # Reset slider to 100%
-            self.isUpdatingSequence = True
-            self.ui.incrementalSlider.setValue(100)
-            self.ui.incrementalSlider.setEnabled(False)
-            self.isUpdatingSequence = False
-            return
-        
-        # Convert slider value (0-100) to scale (0.0-1.0)
-        scale = value / 100.0
-        if scale == 0:
-            scale = 0.0001
-        
-        # Get the transform
-        transformNode = self._parameterNode.transformNode
-        bsplineTransform = transformNode.GetTransformFromParent()
-        
-        if not bsplineTransform:
-            slicer.util.warningDisplay(
-                "Could not access the transform.\n\n"
-                "Please ensure a valid transform has been computed."
-            )
-            # Reset slider and disable
-            self.isUpdatingSequence = True
-            self.ui.incrementalSlider.setValue(100)
-            self.ui.incrementalSlider.setEnabled(False)
-            self.isUpdatingSequence = False
-            return
-        
-        # Check if it has SetDisplacementScale method
-        if not hasattr(bsplineTransform, 'SetDisplacementScale'):
-            transformType = bsplineTransform.GetClassName()
-            
-            slicer.util.warningDisplay(
-                f"Incremental Scaling Not Supported\n\n"
-                f"The current transform type ({transformType}) does not support incremental scaling.\n\n"
-                f"Incremental scaling is only available for B-spline transforms.\n\n"
-                f"The slider has been disabled."
-            )
-            
-            # Disable the slider and reset to 100%
-            self.isUpdatingSequence = True
-            self.ui.incrementalSlider.setValue(100)
-            self.ui.incrementalSlider.setEnabled(False)
-            self.ui.incrementalSlider.setToolTip(
-                f"Incremental scaling is not supported for {transformType} transforms.\n"
-                "Only B-spline transforms support this feature."
-            )
-            self.isUpdatingSequence = False
-            
-            logging.warning(f"Incremental scaling not supported for transform type: {transformType}")
-            return
-        
-        # Apply the scale to the transform (updates spatial positions)
-        bsplineTransform.SetDisplacementScale(scale)
-        transformNode.Modified()
-
-        # Also scale the displacement magnitude values
-        if hasattr(self, 'displacementMagnitudeVolume') and self.displacementMagnitudeVolume:
-            self.scaleDisplacementMagnitudeValues(scale)
-        
-        # Also scale Jacobian if it's loaded
-        if hasattr(self, 'jacobianVolume') and self.jacobianVolume:
-            self.scaleJacobianValues(scale)
-
-        if self.ui.enableHoverDisplayCheckbox.isChecked():
-            self.ensureHoverDisplayActive()
-        
-        logging.info(f"Set transform displacement scale to {scale:.1%}")
-
-
-    def ensureHoverDisplayActive(self):
-        """
-        Ensure the hover display is properly active.
-        Call this after transform modifications that might disrupt the observer.
-        """
-        if not self.ui.enableHoverDisplayCheckbox.isChecked():
-            return
-        
-        # Check if observer exists
-        if self.crosshairObserverTag is None:
-            logging.info("Hover display enabled but observer missing - re-establishing")
-            
-            # Ensure label node exists
-            if not hasattr(self, 'labelMarkupNode') or not self.labelMarkupNode:
-                self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
-            
-            # Re-add observer
-            if self.crosshairNode:
-                self.crosshairObserverTag = self.crosshairNode.AddObserver(
-                    slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent,
-                    self.onMouseMoved
-                )
-                logging.info("Re-established crosshair observer")
-        
-        # Verify display node visibility
-        if hasattr(self, 'labelMarkupNode') and self.labelMarkupNode:
-            disp = self.labelMarkupNode.GetDisplayNode()
-            if disp and not disp.GetVisibility2D():
-                disp.SetVisibility2D(True)
-                disp.SetPointLabelsVisibility(True)
-                logging.info("Re-enabled label node visibility")
-
-
-    def scaleDisplacementMagnitudeValues(self, scale: float):
-        """
-        Scale the actual displacement magnitude values in the volume.
-        This updates the colormap overlay to show scaled displacement values.
-        """
-        if not hasattr(self, '_fullDisplacementArray') or self._fullDisplacementArray is None:
-            logging.warning("Original displacement array not stored")
-            return
-        
-        volumeNode = self.displacementMagnitudeVolume
-        imageData = volumeNode.GetImageData()
-        
-        if not imageData:
-            return
-        
-        # Scale the displacement values from the original full-scale array
-        scaledArray = self._fullDisplacementArray * scale
-        
-        # Get the VTK array and update it
-        vtk_array = imageData.GetPointData().GetScalars()
-        
-        # Use numpy to update efficiently
-        vtk_array_np = vtk_to_numpy(vtk_array)
-        vtk_array_np[:] = scaledArray
-        
-        # Mark as modified to trigger visualization update
-        vtk_array.Modified()
-        imageData.Modified()
-        volumeNode.Modified()
-        
-        # Update display node
-        displayNode = volumeNode.GetDisplayNode()
-        if displayNode:
-            displayNode.Modified()
-        
-        logging.debug(f"Scaled displacement values by {scale:.1%}")
-
-
-    def scaleJacobianValues(self, scale: float):
-        """
-        Scale the Jacobian values based on displacement scale.
-        Jacobian shows compression/expansion, which also scales with displacement.
-        """
-        if not hasattr(self, '_fullJacobianArray') or self._fullJacobianArray is None:
-            logging.warning("Original Jacobian array not stored")
-            return
-        
-        volumeNode = self.jacobianVolume
-        imageData = volumeNode.GetImageData()
-        
-        if not imageData:
-            return
-        
-        # For Jacobian: J_scaled = 1 + scale * (J_full - 1)
-        # This ensures at scale=0, J=1 (no deformation)
-        # At scale=1, J=J_full (full deformation)
-        scaledArray = 1.0 + scale * (self._fullJacobianArray - 1.0)
-        
-        # Get the VTK array and update it
-        vtk_array = imageData.GetPointData().GetScalars()
-        vtk_array_np = vtk_to_numpy(vtk_array)
-        vtk_array_np[:] = scaledArray
-        
-        # Mark as modified
-        vtk_array.Modified()
-        imageData.Modified()
-        volumeNode.Modified()
-        
-        # Update display node
-        displayNode = volumeNode.GetDisplayNode()
-        if displayNode:
-            displayNode.Modified()
-        
-        logging.debug(f"Scaled Jacobian values by {scale:.1%}")
-                
-
-
-    def onToggleUsDisplay(self) -> None:
-        usVolume = self.ui.referenceVolume.currentNode()
-        state = self.ui.enableUsBorderDisplay.checkState() 
-    
-        self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state)
-    
-
-    def cleanupDuplicateColorNodes(self, nodeName):
-        """
-        Remove all but the first instance of a color node
-        """
-        allNodes = slicer.mrmlScene.GetNodesByName(nodeName)
-        allNodes.InitTraversal()
-        
-        nodes_to_remove = []
-        first_node = None
-        
-        for i in range(allNodes.GetNumberOfItems()):
-            node = allNodes.GetNextItemAsObject()
-            if i == 0:
-                first_node = node
-                # print(f"Keeping {nodeName} (ID: {node.GetID()})")
-            else:
-                nodes_to_remove.append(node)
-                # print(f"Will remove duplicate {nodeName} (ID: {node.GetID()})")
-        
-        # Remove duplicates
-        for node in nodes_to_remove:
-            slicer.mrmlScene.RemoveNode(node)
-        
-        return first_node
-    
-    def removeAllNamedNode(self, nodeName):
-            
-        """
-        Remove all but the first instance of a color node
-        """
-        allNodes = slicer.mrmlScene.GetNodesByName(nodeName)
-        
-        # existingNode = slicer.mrmlScene.GetFirstNodeByName(nodeName)
-        # if existingNode:
-        #     slicer.mrmlScene.RemoveNode(existingNode)
-        #     print("removed JacobianMap")
-
-        allNodes.InitTraversal()
-        
-        nodes_to_remove = []
-        first_node = None
-        
-        for i in range(allNodes.GetNumberOfItems()):
-            node = allNodes.GetNextItemAsObject()
-            nodes_to_remove.append(node)
-            # print(f"Will remove duplicate {nodeName} (ID: {node.GetID()})")
-        
-        # Remove duplicates
-        for node in nodes_to_remove:
-            slicer.mrmlScene.RemoveNode(node)
-        
-        #return first_node
-
-    
-
-
-    def createJacobianColorNode(self):
-        """
-        Create Jacobian colormap - only once, reuse if exists
-        """
-        existingNode = slicer.mrmlScene.GetFirstNodeByName("JacobianMap")
-        
-        if existingNode:
-            existingNode.SetAttribute("MyColourMaps", "1")
-            return existingNode
-
-        # print("Creating new JacobianMap")
-        
-        colorNode = slicer.vtkMRMLColorTableNode()
-        colorNode.SetName("JacobianMap")
-        colorNode.SetAttribute("DisplayName", "Jacobian (Compression/Expansion)")
-        colorNode.SetAttribute("MyColourMaps", "1")
-        colorNode.SetTypeToUser()
-        colorNode.SetNumberOfColors(3)
-        colorNode.SetNoName("")
-        colorNode.SetSingletonTag("JacobianMap")
-
-        
-        # Set only two colors
-        colorNode.SetColor(0, 0.0, 0.0, 1.0, 1.0)  # Blue for contracting, index 0
-        colorNode.SetColorName(0, "Contracting")
-
-        colorNode.SetColor(1, 1.0, 1.0, 1.0, 1.0)  # White for no change, index 1
-        colorNode.SetColorName(1, "No Change")
-        
-        colorNode.SetColor(2, 1.0, 0.0, 0.0, 1.0)  # Red for expanding, index 2
-        colorNode.SetColorName(2, "Expanding")
-                
-        slicer.mrmlScene.AddNode(colorNode)
-
-        return colorNode
-
-
-    
-
-
-    def createInputSection(self):
-        section = ctk.ctkCollapsibleButton()
-        section.text = "1. Input Volumes"
-        self.layout.addWidget(section)
-        
-        layout = qt.QFormLayout(section)
-        layout.addRow("Moving Image:", self.referenceVolume)
-        layout.addRow("Fixed Image:", self.backgroundVolume)
-        layout.addRow("Transformation:", self.transformNode)
-
-
-    def onConvertTagFCSVButtonClicked(self):
-        filePath = qt.QFileDialog.getOpenFileName(
-            None, "Open Tag File", "", "Tag files (*.tag)"
-        )
-        text1, text2 = self.getLandmarkLabel()
-        print("Selected file:", filePath, text1, text2)
-        if filePath:
-            success = self.logic.loadTagFile(filePath, text1, text2)
-            if not success:
-                slicer.util.errorDisplay(f"Failed to load tag file: {filePath}")
-            else:
-                logging.info(f"Loaded tag file: {filePath}")
-    
-    def onLoadExpertLabelsClicked(self):
-
-        comboBox = self.ui.LandmarkSelectorComboBox
-        model = comboBox.model()
-        for i in range(comboBox.count):
-            #print("i", i)
-            index = model.index(i, 0)
-            itemText = comboBox.itemText(i)
-            try:
-                node = slicer.util.getNode(itemText)
-                displayNode = node.GetDisplayNode()
-                displayNode.SetVisibility(False)
-                displayNode.SetVisibility2D(False)
-            except:
-                print(f"Could not get node for: {itemText}")
-                continue
-            
-            checked = model.data(index, qt.Qt.CheckStateRole) == qt.Qt.Checked
-            displayNode = node.GetDisplayNode()
-
-            if node.IsA("vtkMRMLMarkupsFiducialNode") and checked:
-                if displayNode:
-                    print("Show Node", node.GetName())
-                    displayNode.SetVisibility(True)
-                    displayNode.SetVisibility2D(True)
-                    displayNode.SetGlyphScale(3.0)
-                    displayNode.SetTextScale(3.0)
-                    displayNode.SetActiveColor([1.0, 0.2, 0.5])
-                    displayNode.SetSelectedColor(0.0, 0.0, 0.0)
-                    displayNode.SetGlyphTypeFromString("CrossDot2D")
-                    displayNode.SetSelected(checked)
-                    displayNode.SetHandlesInteractive(False) #??
-                    displayNode.SetInteractionHandleScale(0.0)
-
-            else:
-                # print("don't show node", node.GetName()) #stores typed in landmark name
-                #displayNode = node.GetDisplayNode()
-                displayNode.SetVisibility(False)
-                displayNode.SetVisibility2D(False)
-                displayNode.SetGlyphScale(3.0)
-
-    
-    def cleanup(self) -> None:
-        """Called when the application closes and the module widget is destroyed."""
-        self.removeObservers()
-        for interactor, tag in getattr(self, "sliceObservers", []):
-            interactor.RemoveObserver(tag)
-            self.sliceObservers = []
-        for dn, tag in getattr(self, "_activeWatchers", []):
-            try:
-                dn.RemoveObserver(tag)
-            except:
-                pass
-        self._activeWatchers = []
-
-        if hasattr(self, 'crosshairNode') and self.crosshairNode and hasattr(self, 'crosshairObserverTag'):
-            if self.crosshairObserverTag is not None:
-                self.crosshairNode.RemoveObserver(self.crosshairObserverTag)
-                self.crosshairObserverTag = None
-
-        crosshairNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLCrosshairNode')
-        if crosshairNode:
-            crosshairNode.RemoveAllObservers()
-            # print("Removed all crosshair observers")
-
-        if self.sequenceBrowserObserverTag and self.sequenceBrowserNode:
-            self.sequenceBrowserNode.RemoveObserver(self.sequenceBrowserObserverTag)
-            self.sequenceBrowserObserverTag = None
-
-
-
-
-    def onSceneUpdated(self, caller, event):
-        self.updateLandmarkSelectorComboBox()
-    
-    
-    def enter(self) -> None:
-        """Called each time the user opens this module."""
-        # Make sure parameter node exists and observed
-
-        
-        self.initializeParameterNode()
-
-        # re-acquire or create mouse label node
-        #This breaks!!:
-        #self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
-        # sync checkbox to match visibility
-        self.updateHoverCheckboxFromNode()
-
-        # sync checkbox to match visibility 
-        self.updateVisualizationCheckboxFromNode()
-
-
-    def exit(self) -> None:
-        """Called each time the user opens a different module."""
-        # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
-        if self._parameterNode:
-            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
-            self._parameterNodeGuiTag = None
-            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
-
-    def onSceneStartClose(self, caller, event) -> None:
-        """Called just before the scene is closed."""
-        # Parameter node will be reset, do not use it anymore
-        self.setParameterNode(None)
-
-    def onSceneEndClose(self, caller, event) -> None:
-        """Called just after the scene is closed."""
-        # If this module is shown while the scene is closed then recreate a new parameter node immediately
-        if self.parent.isEntered:
-            self.initializeParameterNode()
-
-
-    def _forceGreyColormap(self, displayNode):
-        if displayNode and displayNode.GetColorNodeID() != "vtkMRMLColorTableNodeGrey":
-            displayNode.SetAndObserveColorNodeID("vtkMRMLColorTableNodeGrey")
-            displayNode.AutoWindowLevelOn()
-
-
-
-    def removeDisplayNodesFromVolume(self, volumeNode):
-        if not volumeNode:
-            return
-        # Get all display nodes linked to this volume
-        # displayNodes = volumeNode.GetDisplayNodes()
-        #for displayNode in volumeNode.GetDisplayNode():
-        for i in range(volumeNode.GetNumberOfDisplayNodes()):
-            displayNode = volumeNode.GetNthDisplayNode(i)
-            if displayNode:
-                displayNode.SetVisibility(False)
-        #slicer.mrmlScene.RemoveNode(volumeNode.GetDisplayNode())
-        # Disconnect volume from any display nodes
-        #volumeNode.RemoveAllDisplayNodeIDs()
-
-
-    def initializeParameterNode(self) -> None:
-        """Ensure parameter node exists and observed."""
-        self.setParameterNode(self.logic.getParameterNode())
-        
-      
-        # Reset the slice viewers to have no foreground initially on entering and reloading module - much cleaner - NO LONGER DOING THIS
-        layoutManager = slicer.app.layoutManager()
-        # for sliceViewName in layoutManager.sliceViewNames():
-        #     compositeNode = layoutManager.sliceWidget(sliceViewName).mrmlSliceCompositeNode()
-        #     compositeNode.SetForegroundVolumeID(None)
-    
-        backgroundVolumeID = self._parameterNode.backgroundVolume.GetID() if self._parameterNode.backgroundVolume else None
-        
-        if backgroundVolumeID and self._parameterNode.backgroundVolume.GetDisplayNode():
-            displayNode = self._parameterNode.backgroundVolume.GetDisplayNode()
-            displayNode.SetAndObserveColorNodeID("vtkMRMLColorTableNodeGrey")
-            displayNode.AutoWindowLevelOn()
-
-        referenceVolumeID = self._parameterNode.referenceVolume.GetID() if self._parameterNode.referenceVolume else None
-        
-        if referenceVolumeID and self._parameterNode.referenceVolume.GetDisplayNode():
-            displayNode = self._parameterNode.referenceVolume.GetDisplayNode()
-            displayNode.SetAndObserveColorNodeID("vtkMRMLColorTableNodeGrey")
-            displayNode.AutoWindowLevelOn()
-
-        
-                
-  
-    def onNodeChanged(self, caller, event) -> None:
-    
-        self.updateLandmarkSelectorComboBox()
-
-    
-    def updateLandmarkSelectorComboBox(self):
-        '''
-        Tracks which files to add to the selection box for the available landmarks
-        '''
-        self.ui.LandmarkSelectorComboBox.clear()
-
-        #print("Landmark Selector Count", self.LandmarkSelectorComboBox.count)
-
-        #print("Update... ")
-        fiducialNodes = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
-        
-        #print(f"fiducial Nodes", fiducialNodes)
-        #print("fiducial Nodes available", len(fiducialNodes))
-
-        for node in fiducialNodes:
-            if node == self.labelMarkupNode:
-                continue
-            self.ui.LandmarkSelectorComboBox.addItem(node.GetName()) #stores node name (string)
-
-        self.watchActiveLabel()
-        
-       
-
-
-
-
-
-
-    def onLandmarkSelectionChanged(self):
-        # Get all fiducial nodes
-        #allFiducials = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
-        fcsvFiducials = [
-            node for node in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
-            if node.GetStorageNode() and node.GetStorageNode().GetFileName().endswith('.fcsv')
-        ]
-        
-        # Get selected names from the combo box
-        selectedNames = []
-        for i in range(self.LandmarkSelectorComboBox.count):
-            if self.LandmarkSelectorComboBox.checkState(i) == qt.Qt.Checked :
-                selectedNames.append(self.LandmarkSelectorComboBox.itemText(i))
-
-        # Show only selected ones
-        for node in fcsvFiducials:
-            print("Gte nMae:",node.GetName())
-            displayNode = node.GetDisplayNode()
-            if not displayNode:
-                continue
-            if node.GetName() in selectedNames:
-                displayNode.SetUsePointColors(True)         # Use global color, not per-point
-                displayNode.SetVisibility(True)
-                displayNode.SetVisibility2D()
-                displayNode.SetTextScale(1.0)
-                
-                displayNode.SetActiveColor([1.0, 0.0, 1.0])   # Pink when active
-                displayNode.SetColor(1.0, 0.0, 1.0)           # Pink when not active
-                displayNode.SetSelectedColor(1.0, 0.0, 1.0)   # Pink when selected
-                displayNode.SetUseSelectedColor()       
-                
-                displayNode.SetGlyphScale(2.0)
-                displayNode.SetHandlesInteractive(False)
-                displayNode.SetInteractionHandleScale(0.0)
-            else:
-
-                displayNode.SetVisibility(False)
-                displayNode.SetVisibility2D(False)
-
-
-    def watchActiveLabel(self):
-        
-        #observers for selected landmark
-        for n, tag in getattr(self, "_activeWatchers", []):
-            try: n.RemoveObserver(tag)
-            except: pass
-        self._activeWatchers = []
-        self._lastDistancePrinted = None
-
-        def onPointEnd(markupsNode, ev):
-            dn = markupsNode.GetDisplayNode()
-            if not dn:
-                return
-            if dn.GetActiveComponentType() != slicer.vtkMRMLMarkupsDisplayNode.ComponentControlPoint:
-                return
-            i = dn.GetActiveComponentIndex()
-            if i is None or i < 0 or i >= markupsNode.GetNumberOfControlPoints():
-                return
-
-            dist = self.getActivePairInfo()
-            if dist is None:
-                return
-            if self._lastDistancePrinted is not None and abs(dist - self._lastDistancePrinted) < 1e-6:
-                return
-            self._lastDistancePrinted = dist
-            #print(f"distance = {dist:.3f} mm")
-            self.updateLandmarkDistanceDisplay(dist)
-            
-        for n in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
-            if n is getattr(self, "labelMarkupNode", None):
-                continue
-            tag = n.AddObserver(slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, onPointEnd)
-            self._activeWatchers.append((n, tag))
-            
-
-    def getActivePairInfo(self):
-
-        activeNode = None
-        activeIndex = None
-        
-        #find active landmark
-        for n in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
-            if n is getattr(self, "labelMarkupNode", None) or not n.GetDisplayNode():
-                continue
-            if n.GetDisplayNode().GetActiveComponentType() != slicer.vtkMRMLMarkupsDisplayNode.ComponentControlPoint:
-                continue
-            idx = n.GetDisplayNode().GetActiveComponentIndex()
-            if idx is None or idx < 0:
-                continue
-            activeNode = n
-            activeIndex = idx
-            break
-
-        if activeNode is None:
-            return None
-        
-        #find pair landmark
-        pairNode = None
-        for lmrk in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
-            if lmrk is not activeNode and lmrk is not getattr(self, "labelMarkupNode", None):
-                pairNode = lmrk
-                break
-        if pairNode is None:
-            return None
-
-        pairIndex = -1
-        if activeIndex < pairNode.GetNumberOfControlPoints():
-            pairIndex = activeIndex
-        if pairIndex < 0:
-            return None
-        
-        #compute distance in IJK (mm)
-        rasA = [0.0, 0.0, 0.0]
-        rasB = [0.0, 0.0, 0.0]
-        activeNode.GetNthControlPointPositionWorld(activeIndex, rasA)
-        pairNode.GetNthControlPointPositionWorld(pairIndex, rasB)
-        vol = self.ui.loadedTransformVolume.currentNode()
-        ijkA = ijkB = None
-        if vol:
-            rasToIjk = vtk.vtkMatrix4x4()
-            vol.GetRASToIJKMatrix(rasToIjk)
-
-            ijkhA = [0.0, 0.0, 0.0, 1.0]
-            ras_hA = [rasA[0], rasA[1], rasA[2], 1.0]
-            rasToIjk.MultiplyPoint(ras_hA, ijkhA)
-            ijkA = [float(ijkhA[0]), float(ijkhA[1]), float(ijkhA[2])]
-
-            ijkhB = [0.0, 0.0, 0.0, 1.0]
-            ras_hB = [rasB[0], rasB[1], rasB[2], 1.0]
-            rasToIjk.MultiplyPoint(ras_hB, ijkhB)
-            ijkB = [float(ijkhB[0]), float(ijkhB[1]), float(ijkhB[2])]
-
-        dx = ijkA[0]-ijkB[0]
-        dy = ijkA[1]-ijkB[1]
-        dz = ijkA[2]-ijkB[2]
-        activeLabel = activeNode.GetNthControlPointLabel(activeIndex) or f"{activeNode.GetName()}-{activeIndex+1}"
-        pairLabel   = pairNode.GetNthControlPointLabel(pairIndex)   or f"{pairNode.GetName()}-{pairIndex+1}"
-        #print(f"{activeLabel}: IJK = {(ijkA)}")
-        #print(f"{pairLabel}: IJK = {(ijkB)}")
-        self.updateSelectedLandmarksDisplay(activeLabel, pairLabel)
-        return (dx*dx + dy*dy + dz*dz) ** 0.5 
-    
-
-    def updateLandmarkDistanceDisplay(self, dist: float) -> None:
-    
-        if dist is None:
-            self.ui.landmarkEuclidianDistance.setText("N/A")
-        else:
-            self.ui.landmarkEuclidianDistance.setText(f"{dist:.3f} mm")
-            self.ui.landmarkEuclidianDistance.setReadOnly(True)
-
-    
-    def updateSelectedLandmarksDisplay(self, activeLabel: str, pairLabel: str) -> None:
-        if not hasattr(self.ui, 'selectedLandmarks') or self.ui.selectedLandmarks is None:
-            return
-        self.ui.selectedLandmarks.setReadOnly(True)
-        self.ui.landmarkEuclidianDistance.setReadOnly(True)
-        self.ui.selectedLandmarks.setText(f"{activeLabel}  ↔  {pairLabel}")
-
-
-    def setParameterNode(self, inputParameterNode: Optional[DeformViewParameterNode]) -> None:
-        """
-        Set and observe parameter node.
-        Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
-        """
-
-        if self._parameterNode:
-            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
-            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
-        self._parameterNode = inputParameterNode
-        if self._parameterNode:
-            # Note: in the .ui file, a Qt dynamic property called "SlicerParameterName" is set on each
-            # ui element that needs connection.
-            self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
-
-            self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
-            self._checkCanApply()
-
-    def _checkCanApply(self, caller=None, event=None) -> None:
-        
-        # make sure there's a reference MRI and transformation
-        if (
-            self._parameterNode
-            and self._parameterNode.referenceVolume
-            and self._parameterNode.transformNode
-            and self._parameterNode.backgroundVolume
-        ):
-            self.ui.applyButton.toolTip = _("Compute voxel-wise displacement magnitude")
-            self.ui.applyButton.enabled = True
-        else:
-            # self.ui.applyButton.toolTip = _("Select reference volume and transform")
-            self.ui.applyButton.enabled = False
-
-
-    def onApplyButton(self) -> None:
-        """
-        Run processing when user clicks 'Compute Mapping' button.
-        """
-        with slicer.util.tryWithErrorDisplay(_("Failed to compute voxel-wise displacement."), waitCursor=True):
-            
-            logging.info(f"Reference Volume: {self._parameterNode.referenceVolume}")
-            logging.info(f"Background Volume: {self._parameterNode.backgroundVolume}")
-            logging.info(f"Transform Node: {self._parameterNode.transformNode}")
-
-            hoverWasEnabled = self.ui.enableHoverDisplayCheckbox.isChecked()
-            
-            #  NEW: Reset background volume to have no transform
-            if self._parameterNode.backgroundVolume:
-                self._parameterNode.backgroundVolume.SetAndObserveTransformNodeID(None)
-                logging.info("Reset background volume transform to identity")
-            
-            # Create displacement field (for visualization)
-            displacementVolume = self.logic.computeDisplacementMagnitude(
-                referenceVolume=self._parameterNode.referenceVolume,
-                transformNode=self._parameterNode.transformNode,
-                defaultColourMap=self.defaultColorNodeID,
-                scale=1.0
-            )
-            
-            # Create Jacobian volume
-            jacobianVolume = self.logic.computeJacobianMagnitude(
-                referenceVolume=self._parameterNode.referenceVolume,
-                transformNode=self._parameterNode.transformNode,
-                defaultColourMap=self.defaultColorNodeID
-            )
-            
-            # Store original arrays for scaling
-            imageData = displacementVolume.GetImageData()
-            scalars = imageData.GetPointData().GetScalars()
-            self._fullDisplacementArray = vtk_to_numpy(scalars).copy()
-            
-            jacImageData = jacobianVolume.GetImageData()
-            jacScalars = jacImageData.GetPointData().GetScalars()
-            self._fullJacobianArray = vtk_to_numpy(jacScalars).copy()
-            
-            logging.info(f"Stored original arrays - Displacement range: [{self._fullDisplacementArray.min():.2f}, {self._fullDisplacementArray.max():.2f}]")
-            
-            # Apply transform to BOTH volumes so they update together spatially
-            transformNode = self._parameterNode.transformNode
-            
-            # UPDATED: Apply transform to background volume (now starting from identity)
-            self._parameterNode.backgroundVolume.SetAndObserveTransformNodeID(transformNode.GetID())
-            
-            # Apply transform to displacement magnitude volume
-            displacementVolume.SetAndObserveTransformNodeID(transformNode.GetID())
-            
-            # NEW: Reset transform scale to 100% (important!)
-            bsplineTransform = transformNode.GetTransformFromParent()
-            if bsplineTransform and hasattr(bsplineTransform, 'SetDisplacementScale'):
-                bsplineTransform.SetDisplacementScale(1.0)
-                logging.info("Reset transform scale to 100%")
-            
-            # Setup displacement volume display
-            dispDisplay = displacementVolume.GetDisplayNode()
-            if not dispDisplay:
-                displacementVolume.CreateDefaultDisplayNodes()
-                dispDisplay = displacementVolume.GetDisplayNode()
-            
-            if dispDisplay:
-                dispDisplay.AutoWindowLevelOn()
-                dispDisplay.SetScalarVisibility(True)
-            
-            # Set default selections
-            if hasattr(self.ui, "loadedTransformVolume") and displacementVolume:
-                self.ui.loadedTransformVolume.setEnabled(True)
-                self.ui.loadedTransformVolume.setCurrentNode(displacementVolume)
-            
-            # Set default color
-            colorNode = self.ui.colorMapSelector.currentNode()
-            if colorNode is None:
-                colorNode = slicer.util.getFirstNodeByClassByName('vtkMRMLColorTableNode', 'fMRI')
-            
-            self.ui.colorMapSelector.setEnabled(True)
-            self.ui.colorMapSelector.setCurrentNode(colorNode)
-            
-            # Set background volume in slice views
-            slicer.util.setSliceViewerLayers(
-                background=self._parameterNode.backgroundVolume,
-                foreground=displacementVolume,
-                foregroundOpacity=self.ui.opacitySlider.value / 100
-            )
-            
-            # Load displacement visualization
-            self.ui.loadedTransformVolume.setCurrentNode(displacementVolume)
-            self.onLoadDisplacementVolume(flag=0)
-            
-            # UPDATED: Reset incremental slider to 100%
-            if hasattr(self.ui, 'incrementalSlider'):
-                self.isUpdatingSequence = True
-                self.ui.incrementalSlider.setValue(100)
-                self.ui.incrementalSlider.setEnabled(True)
-                self.isUpdatingSequence = False
-                logging.info("Reset incremental slider to 100%")
-            
-            # Store volumes for reference
-            self.displacementMagnitudeVolume = displacementVolume
-            self.jacobianVolume = jacobianVolume
-
-            if hoverWasEnabled:
-                # Small delay to ensure everything is set up
-                qt.QTimer.singleShot(100, lambda: self.ensureHoverDisplayActive())
-            
-            logging.info("Transform applied to both background and displacement volumes")
-
-
-
-    def createIncrementalSequence(self):
-        """
-        Create a sequence node containing 10 incrementally transformed volumes
-        (10%, 20%, ..., 100% of the full transformation).
-        """
-        if not self._parameterNode.backgroundVolume or not self._parameterNode.transformNode:
-            logging.warning("Missing background volume or transform for sequence creation.")
-            return
-        
-        logging.info("Creating incremental transformation sequence...")
-        
-        # Clean up existing sequence if present
-        if self.sequenceNode:
-            slicer.mrmlScene.RemoveNode(self.sequenceNode)
-            self.sequenceNode = None
-        if self.sequenceBrowserNode:
-            # Remove observer before deleting
-            if self.sequenceBrowserObserverTag:
-                self.sequenceBrowserNode.RemoveObserver(self.sequenceBrowserObserverTag)
-                self.sequenceBrowserObserverTag = None
-            slicer.mrmlScene.RemoveNode(self.sequenceBrowserNode)
-            self.sequenceBrowserNode = None
-        
-        # Create new sequence node
-        self.sequenceNode = slicer.mrmlScene.AddNewNodeByClass(
-            "vtkMRMLSequenceNode",
-            f"{self._parameterNode.backgroundVolume.GetName()}_IncrementalSequence"
-        )
-        
-        # Create sequence browser node
-        self.sequenceBrowserNode = slicer.mrmlScene.AddNewNodeByClass(
-            "vtkMRMLSequenceBrowserNode",
-            "IncrementalTransformBrowser"
-        )
-        
-        # IMPORTANT: Add synchronized sequence BEFORE generating volumes
-        self.sequenceBrowserNode.AddSynchronizedSequenceNode(self.sequenceNode)
-        
-        # Generate 10 incrementally transformed volumes
-        for i in range(1, 11):
-            scale = i * 0.1  # 0.1, 0.2, ..., 1.0
-            percentage = int(scale * 100)
-            
-            logging.info(f"Generating {percentage}% transformed volume...")
-            
-            # Create transformed volume at this scale
-            transformedVolume = self.logic.createIncrementalTransform(
-                backgroundVolume=self._parameterNode.backgroundVolume,
-                transformNode=self._parameterNode.transformNode,
-                scale=scale,
-                name=f"{self._parameterNode.backgroundVolume.GetName()}_{percentage}pct"
-            )
-            
-            # Add to sequence with percentage as index value
-            timeValue = str(percentage)
-            self.sequenceNode.SetDataNodeAtValue(transformedVolume, timeValue)
-            
-            # Remove the individual node from scene (sequence keeps a copy)
-            slicer.mrmlScene.RemoveNode(transformedVolume)
-        
-        # Set up sequence browser properties
-        self.sequenceBrowserNode.SetPlaybackRateFps(10)
-        self.sequenceBrowserNode.SetPlaybackActive(False)
-        self.sequenceBrowserNode.SetRecording(self.sequenceNode, False)
-        
-        # CRITICAL: Set initial item to 100% (index 9) BEFORE getting proxy node
-        self.sequenceBrowserNode.SetSelectedItemNumber(9)
-        
-        # CRITICAL: Get the proxy node - this is what gets displayed
-        proxyNode = self.sequenceBrowserNode.GetProxyNode(self.sequenceNode)
-        
-        if not proxyNode:
-            logging.error("Failed to get proxy node from sequence browser!")
-            return
-        
-        # Store proxy node for later use
-        self.sequenceProxyNode = proxyNode
-        
-        logging.info(f"Proxy node created: {proxyNode.GetName()}")
-        
-        # Set the proxy node as background in all slice views
-        layoutManager = slicer.app.layoutManager()
-        for sliceViewName in layoutManager.sliceViewNames():
-            compositeNode = layoutManager.sliceWidget(sliceViewName).mrmlSliceCompositeNode()
-            compositeNode.SetBackgroundVolumeID(proxyNode.GetID())
-            logging.info(f"Set {sliceViewName} background to proxy node")
-        
-        # Add observer to sync slider when sequence changes
-        self.sequenceBrowserObserverTag = self.sequenceBrowserNode.AddObserver(
-            vtk.vtkCommand.ModifiedEvent,
-            self.onSequenceBrowserIndexChanged
-        )
-        
-        logging.info(f"Created sequence with {self.sequenceNode.GetNumberOfDataNodes()} volumes")
-
-
-    def onSequenceBrowserIndexChanged(self, caller, event):
-        """
-        Called when sequence browser index changes (e.g., from toolbar controls).
-        Updates the slider to match.
-        """
-
-
-        if self.isUpdatingSequence:
-            return
-        
-        self.isUpdatingSequence = True
-        
-        try:
-            itemIndex = self.sequenceBrowserNode.GetSelectedItemNumber()
-            # Map index (0-9) to slider value (10-100)
-            sliderValue = (itemIndex + 1) * 10
-            
-            self.ui.incrementalSlider.blockSignals(True)
-            self.ui.incrementalSlider.setValue(sliderValue)
-            self.ui.incrementalSlider.blockSignals(False)
-            
-            logging.info(f"Sequence changed to item {itemIndex} ({sliderValue}%)")
-        finally:
-            self.isUpdatingSequence = False
-
-
     def createDisplacementIcon(self):
         '''
         Creates icon for displacement magnitude button
@@ -2225,6 +1032,993 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.loadDisplacementButton.setStyleSheet(inactiveStyle)
             self.ui.loadJacobianButton.setStyleSheet(activeStyle)
 
+        
+
+
+
+
+
+    # ╔══════════════════════════════════════╗
+    # ║          CALLERS:                    ║
+    # ╚══════════════════════════════════════╝
+
+    def onOpacityChanged(self, value) -> None:
+        normalizedValue = value/100
+        slicer.util.setSliceViewerLayers(foregroundOpacity=normalizedValue)
+        self.ui.opacityValue.setText(f"{value:.0f}%")
+
+    def onNodeChanged(self, caller, event) -> None:
+        self.updateLandmarkSelectorComboBox()
+
+
+    def onIncrementalChanged(self, value: int) -> None:
+        """
+        Called when incremental slider changes.
+        Scales the transform displacement AND the displacement magnitude values.
+        Only works for B-spline transforms that support SetDisplacementScale.
+        """
+        if self.isUpdatingSequence:
+            return
+        
+        if not self._parameterNode or not self._parameterNode.transformNode:
+            slicer.util.warningDisplay(
+                "No transform is currently loaded.\n\n"
+                "Please compute the displacement field first by clicking 'Compute Mapping'."
+            )
+            # Reset slider to 100%
+            self.isUpdatingSequence = True
+            self.ui.incrementalSlider.setValue(100)
+            self.ui.incrementalSlider.setEnabled(False)
+            self.isUpdatingSequence = False
+            return
+        
+        # Convert slider value (0-100) to scale (0.0-1.0)
+        scale = value / 100.0
+        if scale == 0:
+            scale = 0.0001
+        
+        # Get the transform
+        transformNode = self._parameterNode.transformNode
+        bsplineTransform = transformNode.GetTransformFromParent()
+        
+        if not bsplineTransform:
+            slicer.util.warningDisplay(
+                "Could not access the transform.\n\n"
+                "Please ensure a valid transform has been computed."
+            )
+            # Reset slider and disable
+            self.isUpdatingSequence = True
+            self.ui.incrementalSlider.setValue(100)
+            self.ui.incrementalSlider.setEnabled(False)
+            self.isUpdatingSequence = False
+            return
+        
+        # Check if it has SetDisplacementScale method
+        if not hasattr(bsplineTransform, 'SetDisplacementScale'):
+            transformType = bsplineTransform.GetClassName()
+            
+            slicer.util.warningDisplay(
+                f"Incremental Scaling Not Supported\n\n"
+                f"The current transform type ({transformType}) does not support incremental scaling.\n\n"
+                f"Incremental scaling is only available for B-spline transforms.\n\n"
+                f"The slider has been disabled."
+            )
+            
+            # Disable the slider and reset to 100%
+            self.isUpdatingSequence = True
+            self.ui.incrementalSlider.setValue(100)
+            self.ui.incrementalSlider.setEnabled(False)
+            self.ui.incrementalSlider.setToolTip(
+                f"Incremental scaling is not supported for {transformType} transforms.\n"
+                "Only B-spline transforms support this feature."
+            )
+            self.isUpdatingSequence = False
+            
+            logging.warning(f"Incremental scaling not supported for transform type: {transformType}")
+            return
+        
+        # Apply the scale to the transform (updates spatial positions)
+        bsplineTransform.SetDisplacementScale(scale)
+        transformNode.Modified()
+
+        # Also scale the displacement magnitude values
+        if hasattr(self, 'displacementMagnitudeVolume') and self.displacementMagnitudeVolume:
+            self.scaleDisplacementMagnitudeValues(scale)
+        
+        # Also scale Jacobian if it's loaded
+        if hasattr(self, 'jacobianVolume') and self.jacobianVolume:
+            self.scaleJacobianValues(scale)
+
+        if self.ui.enableHoverDisplayCheckbox.isChecked():
+            self.ensureHoverDisplayActive()
+        
+        logging.info(f"Set transform displacement scale to {scale:.1%}")
+
+
+    def onThresholdSliderChanged(self, minValue, maxValue):
+
+        volumeNode = self.ui.loadedTransformVolume.currentNode()
+        if not volumeNode:
+            logging.warning("No displacement magnitude volume available for thresholding.")
+            return
+        
+        # dynamically set min and max value
+        displayNode = volumeNode.GetDisplayNode()
+
+
+    def onColourWindowSliderChanged(self, minValue, maxValue):
+
+        volumeNode = self.ui.loadedTransformVolume.currentNode()
+        if not volumeNode:
+            logging.warning("No displacement magnitude volume available for thresholding.")
+            return
+        
+        # dynamically set min and max value
+        displayNode = volumeNode.GetDisplayNode()
+
+        displayNode.AutoWindowLevelOff()
+        displayNode.SetThreshold(minValue, maxValue)
+        displayNode.SetApplyThreshold(True)
+        displayNode.Modified()
+        logging.info(f"Colour window applied: min = {minValue}, max = {maxValue}")
+
+        self.ui.colourWindowMinSpinBox.blockSignals(True)
+        self.ui.colourWindowMaxSpinBox.blockSignals(True)
+        self.ui.colourWindowMinSpinBox.setValue(minValue)
+        self.ui.colourWindowMaxSpinBox.setValue(maxValue)
+        self.ui.colourWindowMinSpinBox.blockSignals(False)
+        self.ui.colourWindowMaxSpinBox.blockSignals(False)
+
+
+    def onThresholdSliderChanged(self, minValue, maxValue):
+
+        volumeNode = self.ui.loadedTransformVolume.currentNode()
+        if not volumeNode:
+            logging.warning("No displacement magnitude volume available for thresholding.")
+            return
+        
+        # dynamically set min and max value
+        displayNode = volumeNode.GetDisplayNode()
+
+        displayNode.AutoWindowLevelOff()
+        displayNode.SetThreshold(minValue, maxValue)
+        displayNode.SetApplyThreshold(True)
+        displayNode.Modified()
+        logging.info(f"Threshold applied: min = {minValue}, max = {maxValue}")
+
+        self.ui.thresholdMinSpinBox.blockSignals(True)
+        self.ui.thresholdMaxSpinBox.blockSignals(True)
+        self.ui.thresholdMinSpinBox.setValue(minValue)
+        self.ui.thresholdMaxSpinBox.setValue(maxValue)
+        self.ui.thresholdMinSpinBox.blockSignals(False)
+        self.ui.thresholdMaxSpinBox.blockSignals(False)
+
+
+    def onMinSpinBoxChanged(self, value):
+        currentMax = self.ui.thresholdMaxSpinBox.value
+        self.ui.thresholdSlider.setValues(value, currentMax)
+
+
+    def onMaxSpinBoxChanged(self, value):
+        currentMin = self.ui.thresholdMinSpinBox.value
+        self.ui.thresholdSlider.setValues(currentMin, value)
+
+    def onResetWindowLevel(self, volumeNode):
+        '''
+        Reset window/level to default values
+        '''
+        if self.defaultWindow is None or self.defaultLevel is None:
+            # No defaults stored, try to reinitialize
+            selectedVolume = self.ui.loadedTransformVolume.currentNode()
+            if selectedVolume:
+                self.initializeWindowLevelControls(selectedVolume)
+            return
+        
+        displayNode = volumeNode.GetDisplayNode()
+
+        colorNode = displayNode.GetColorNode()
+        
+        if colorNode and "JacobianMap" in colorNode.GetName():
+            window = self.defaultWindow_Jacobian
+            level = self.defaultLevel_Jacobian
+
+        else:
+            window = self.defaultWindow_DisplacementMag
+            level = self.defaultLevel_DisplacementMag
+
+        # Use stored defaults
+
+        # Block signals to prevent multiple updates
+        self.updatingWindowLevel = True
+        
+        # # Update all controls
+        # self.ui.windowSpinBox.value = window
+        # self.ui.levelSpinBox.value = level
+        
+        # minVal = level - window / 2.0
+        # maxVal = level + window / 2.0
+        # self.ui.windowLevelSlider.minimumValue = minVal
+        # self.ui.windowLevelSlider.maximumValue = maxVal
+        
+        # Update display node
+        self.updateVolumeWindowLevel(window, level)
+        
+        self.updatingWindowLevel = False
+        
+        print(f"Reset to default: window={window}, level={level}")
+
+
+
+    def onWindowLevelSliderChanged(self, minVal, maxVal):
+        '''
+        Called when the double slider values change
+        Updates window/level based on slider min/max
+        '''
+        if self.updatingWindowLevel:
+            return
+        
+        self.updatingWindowLevel = True
+        
+        # Calculate window and level from slider min/max
+        window = maxVal - minVal
+        level = (maxVal + minVal) / 2.0
+        
+        # Update spin boxes
+        self.ui.windowSpinBox.value = window
+        self.ui.levelSpinBox.value = level
+        
+        # Update display node
+        self.updateVolumeWindowLevel(window, level)
+        
+        self.updatingWindowLevel = False
+
+        
+    def onWindowSpinBoxChanged(self, window):
+        '''
+        Called when window spinbox changes
+        Updates level spinbox and slider
+        '''
+        if self.updatingWindowLevel:
+            return
+        
+        self.updatingWindowLevel = True
+        
+        # Get current level
+        level = self.ui.levelSpinBox.value
+        
+        # Calculate min/max for slider
+        minVal = level - window / 2.0
+        maxVal = level + window / 2.0
+        
+        # Update slider
+        self.ui.windowLevelSlider.minimumValue = minVal
+        self.ui.windowLevelSlider.maximumValue = maxVal
+        
+        # Update display node
+        self.updateVolumeWindowLevel(window, level)
+        
+        self.updatingWindowLevel = False
+
+
+    def onLevelSpinBoxChanged(self, level):
+        '''
+        Called when level spinbox changes
+        Updates window spinbox and slider
+        '''
+        if self.updatingWindowLevel:
+            return
+        
+        self.updatingWindowLevel = True
+        
+        # Get current window
+        window = self.ui.windowSpinBox.value
+        
+        # Calculate min/max for slider
+        minVal = level - window / 2.0
+        maxVal = level + window / 2.0
+        
+        # Update slider
+        self.ui.windowLevelSlider.minimumValue = minVal
+        self.ui.windowLevelSlider.maximumValue = maxVal
+        
+        # Update display node
+        self.updateVolumeWindowLevel(window, level)
+        
+        self.updatingWindowLevel = False
+
+
+    def onToggleHoverDisplay(self, enabled: bool) -> None:
+        # print("on Toggle Hover Display")
+        
+
+        self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
+        disp = self.labelMarkupNode.GetDisplayNode()
+
+        # set it to be CrossDot2D
+        if disp:
+            # Set default node type
+            disp.SetGlyphType(3)  # if you want to change go look at markups -> display -> advanced -> glyphtype and choose number in list
+            disp.SetGlyphScale(8) 
+
+        if enabled:
+            # print("enabled")
+            
+            # make mouse cursor invisible
+            for sliceName in slicer.app.layoutManager().sliceViewNames():
+                sliceWidget = slicer.app.layoutManager().sliceWidget(sliceName)
+                sliceView = sliceWidget.sliceView()
+                sliceView.setViewCursor(qt.Qt.BlankCursor)
+
+            # FORCE all relevant visibilities ON
+            self.labelMarkupNode.SetDisplayVisibility(True)       # main visibility toggle
+            disp.SetVisibility(True)                              # fallback
+            disp.SetVisibility2D(True)
+            disp.SetVisibility3D(False)                           # i want 2D only
+            disp.SetPointLabelsVisibility(True)                   # show text
+            disp.SetTextScale(4.5)                                # initial label size
+
+            # connect marksup size toggle
+            self.ui.markupSizeSlider.setMinimum(50)     
+            self.ui.markupSizeSlider.setMaximum(200)   
+            self.ui.markupSizeSlider.setValue(int(disp.GetGlyphScale() * 10))  
+            self.ui.markupSizeSlider.setSingleStep(1)
+            self.ui.markupSizeSlider.valueChanged.connect(self.onMarkupNodeSizeChanged)
+
+            # setup slider to control text size
+            self.ui.markupTextSizeSlider.setMinimum(10)  # corresponds to 1.0
+            self.ui.markupTextSizeSlider.setMaximum(100) # corresponds to 10.0
+            self.ui.markupTextSizeSlider.setValue(int(disp.GetTextScale() * 10))  # match current label size
+            self.ui.markupTextSizeSlider.setSingleStep(1)
+            self.ui.markupTextSizeSlider.valueChanged.connect(self.onMarkupTextChanged)
+
+            if self.crosshairObserverTag is None:
+                # print('self.crosshairObserver is None')
+                self.crosshairObserverTag = self.crosshairNode.AddObserver(
+                    slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent,
+                    self.onMouseMoved
+            )
+
+            # if self.crosshairObserverTag is None:
+            #     self.crosshairObserverTag = self.crosshairNode.AddObserver(
+            #         slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent,
+            #         self.onMouseMoved
+            #     )
+
+            
+
+        else:
+            # FORCE everything off
+            self.labelMarkupNode.SetDisplayVisibility(False)
+            disp.SetVisibility(False)
+            disp.SetVisibility2D(False)
+            disp.SetVisibility3D(False)
+            disp.SetPointLabelsVisibility(False)
+
+            if self.crosshairObserverTag is not None:
+                self.crosshairNode.RemoveObserver(self.crosshairObserverTag)
+                self.crosshairObserverTag = None
+
+            # restore cursor to default
+            for sliceName in slicer.app.layoutManager().sliceViewNames():
+                sliceWidget = slicer.app.layoutManager().sliceWidget(sliceName)
+                sliceView = sliceWidget.sliceView()
+                sliceView.setViewCursor(qt.Qt.ArrowCursor)
+    
+
+    def onMarkupNodeSizeChanged(self, value):
+        """Adjust the glyph size of the labelMarkupNode."""
+        if hasattr(self, "labelMarkupNode") and self.labelMarkupNode:
+            disp = self.labelMarkupNode.GetDisplayNode()
+            if disp:
+                disp.SetGlyphScale(value / 10.0)
+
+
+    def onMarkupTextChanged(self, value):
+        # Adjust the size of the markup labels based on slider value
+        if hasattr(self, "labelMarkupNode") and self.labelMarkupNode:
+            disp = self.labelMarkupNode.GetDisplayNode()
+            if disp:
+                # Scale slider value down by 10 to allow float sizes like 3.5
+                disp.SetTextScale(value / 10.0)
+
+
+
+    def onToggleDisplacementVisualizationDisplay(self, enabled: bool) -> None:
+        # print("on Displacement Visualization Toggle")
+
+        self.volumeNode = self.ui.loadedTransformVolume.currentNode()
+        
+        if not self.volumeNode:
+            return
+        
+        displayNode = self.volumeNode.GetDisplayNode()
+
+        if enabled:
+            # print("enabled")
+            
+            # Show in slice views by setting foreground opacity
+            normalizedValue = self.ui.opacitySlider.value / 100
+            
+            for sliceName in slicer.app.layoutManager().sliceViewNames():
+                sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
+                sliceComposite.SetForegroundVolumeID(self.volumeNode.GetID())
+                sliceComposite.SetForegroundOpacity(normalizedValue)
+            
+            # Optional: also enable 3D visibility if needed
+            displayNode.SetVisibility3D(False)  # Keep 3D off if you only want 2D
+
+        else:
+            # print("disabled")
+            
+            # Hide from slice views by setting foreground to None or opacity to 0
+            for sliceName in slicer.app.layoutManager().sliceViewNames():
+                sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
+                # Option 1: Remove as foreground entirely
+                sliceComposite.SetForegroundVolumeID(None)
+                # Option 2: Or just set opacity to 0
+                # sliceComposite.SetForegroundOpacity(0.0)
+
+
+
+    def onMouseMoved(self, observer, eventid):
+        # if markup node doesn't exist do nothing
+        #print("self.ui.loadedTransformVolume.currentNode()", self.ui.loadedTransformVolume.currentNode())
+        #print("elf.ui.loadedTransformVolume.currentNode().GetDisplayNode())", self.ui.loadedTransformVolume.currentNode().GetDisplayNode())
+        
+        if not self.ui.loadedTransformVolume.currentNode() or not self.ui.loadedTransformVolume.currentNode().GetDisplayNode():
+            #print("no volume")
+            return
+        
+        # Check if labelMarkupNode exists and has a display node
+        if not hasattr(self, 'labelMarkupNode') or not self.labelMarkupNode:
+            print("no markup node")
+            return
+        
+        displayNode = self.labelMarkupNode.GetDisplayNode()
+        if not displayNode:
+            print("no display node")
+            return
+        
+        if not displayNode.GetVisibility2D():
+            return
+
+        ras = [0.0, 0.0, 0.0] 
+        self.crosshairNode.GetCursorPositionRAS(ras)
+    
+        # move label to current RAS position
+        self.labelMarkupNode.SetNthControlPointPosition(0, ras)
+
+        #print("in mouse moved")
+
+        # sample displacement volume at that RAS location
+        #displacementVolume = self.ui.existingDisplacementVolumeSelector.currentNode()
+        displacementVolume = self.ui.loadedTransformVolume.currentNode()
+
+        if not displacementVolume:
+            self.labelMarkupNode.SetNthControlPointLabel(0, "No volume")
+            return
+        
+
+        # convert RAS to IJK
+        rasToIjk = vtk.vtkMatrix4x4()
+        displacementVolume.GetRASToIJKMatrix(rasToIjk)
+        ijk = [0.0, 0.0, 0.0, 1.0]
+        ras_hom = list(ras) + [1.0]
+        rasToIjk.MultiplyPoint(ras_hom, ijk)
+        ijk = [int(round(i)) for i in ijk[:3]]
+
+        dims = displacementVolume.GetImageData().GetDimensions()
+        if any(i < 0 or i >= d for i, d in zip(ijk, dims)):
+            # self.labelMarkupNode.SetNthControlPointLabel(0, "Out of bounds")
+            self.labelMarkupNode.SetNthControlPointLabel(0, "")
+            return
+
+        value = displacementVolume.GetImageData().GetScalarComponentAsDouble(*ijk, 0)
+
+        # get flag
+        # flag = self.getBrainShiftFlag(displacementVolume)
+        flag = getattr(self, "currentVisualizationFlag", 0)
+
+
+        # apply flag logic
+        if flag == 0:
+            # displacement magnitude (mm)
+            label = f"{value:.2f} mm"
+        elif flag == 1:
+            # display percent
+            label = f"{value:+.1f}%"
+        else:
+            label = f"{value:.2f}"
+
+        self.labelMarkupNode.SetNthControlPointLabel(0, label)
+
+
+    
+    
+    
+    
+    # ╔══════════════════════════════════════╗
+    # ║       INCREMENTAL TRANSFORM          ║
+    # ╚══════════════════════════════════════╝
+
+
+    def scaleDisplacementMagnitudeValues(self, scale: float):
+        """
+        Scale the actual displacement magnitude values in the volume.
+        This updates the colormap overlay to show scaled displacement values.
+        """
+        if not hasattr(self, '_fullDisplacementArray') or self._fullDisplacementArray is None:
+            logging.warning("Original displacement array not stored")
+            return
+        
+        volumeNode = self.displacementMagnitudeVolume
+        imageData = volumeNode.GetImageData()
+        
+        if not imageData:
+            return
+        
+        # Scale the displacement values from the original full-scale array
+        scaledArray = self._fullDisplacementArray * scale
+        
+        # Get the VTK array and update it
+        vtk_array = imageData.GetPointData().GetScalars()
+        
+        # Use numpy to update efficiently
+        vtk_array_np = vtk_to_numpy(vtk_array)
+        vtk_array_np[:] = scaledArray
+        
+        # Mark as modified to trigger visualization update
+        vtk_array.Modified()
+        imageData.Modified()
+        volumeNode.Modified()
+        
+        # Update display node
+        displayNode = volumeNode.GetDisplayNode()
+        if displayNode:
+            displayNode.Modified()
+        
+        logging.debug(f"Scaled displacement values by {scale:.1%}")
+
+
+    def scaleJacobianValues(self, scale: float):
+        """
+        Scale the Jacobian values based on displacement scale.
+        Jacobian shows compression/expansion, which also scales with displacement.
+        """
+        if not hasattr(self, '_fullJacobianArray') or self._fullJacobianArray is None:
+            logging.warning("Original Jacobian array not stored")
+            return
+        
+        volumeNode = self.jacobianVolume
+        imageData = volumeNode.GetImageData()
+        
+        if not imageData:
+            return
+        
+        # For Jacobian: J_scaled = 1 + scale * (J_full - 1)
+        # This ensures at scale=0, J=1 (no deformation)
+        # At scale=1, J=J_full (full deformation)
+        scaledArray = 1.0 + scale * (self._fullJacobianArray - 1.0)
+        
+        # Get the VTK array and update it
+        vtk_array = imageData.GetPointData().GetScalars()
+        vtk_array_np = vtk_to_numpy(vtk_array)
+        vtk_array_np[:] = scaledArray
+        
+        # Mark as modified
+        vtk_array.Modified()
+        imageData.Modified()
+        volumeNode.Modified()
+        
+        # Update display node
+        displayNode = volumeNode.GetDisplayNode()
+        if displayNode:
+            displayNode.Modified()
+        
+        logging.debug(f"Scaled Jacobian values by {scale:.1%}")
+
+
+    def createIncrementalSequence(self):
+        """
+        Create a sequence node containing 10 incrementally transformed volumes
+        (10%, 20%, ..., 100% of the full transformation).
+        """
+        if not self._parameterNode.backgroundVolume or not self._parameterNode.transformNode:
+            logging.warning("Missing background volume or transform for sequence creation.")
+            return
+        
+        logging.info("Creating incremental transformation sequence...")
+        
+        # Clean up existing sequence if present
+        if self.sequenceNode:
+            slicer.mrmlScene.RemoveNode(self.sequenceNode)
+            self.sequenceNode = None
+        if self.sequenceBrowserNode:
+            # Remove observer before deleting
+            if self.sequenceBrowserObserverTag:
+                self.sequenceBrowserNode.RemoveObserver(self.sequenceBrowserObserverTag)
+                self.sequenceBrowserObserverTag = None
+            slicer.mrmlScene.RemoveNode(self.sequenceBrowserNode)
+            self.sequenceBrowserNode = None
+        
+        # Create new sequence node
+        self.sequenceNode = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLSequenceNode",
+            f"{self._parameterNode.backgroundVolume.GetName()}_IncrementalSequence"
+        )
+        
+        # Create sequence browser node
+        self.sequenceBrowserNode = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLSequenceBrowserNode",
+            "IncrementalTransformBrowser"
+        )
+        
+        # IMPORTANT: Add synchronized sequence BEFORE generating volumes
+        self.sequenceBrowserNode.AddSynchronizedSequenceNode(self.sequenceNode)
+        
+        # Generate 10 incrementally transformed volumes
+        for i in range(1, 11):
+            scale = i * 0.1  # 0.1, 0.2, ..., 1.0
+            percentage = int(scale * 100)
+            
+            logging.info(f"Generating {percentage}% transformed volume...")
+            
+            # Create transformed volume at this scale
+            transformedVolume = self.logic.createIncrementalTransform(
+                backgroundVolume=self._parameterNode.backgroundVolume,
+                transformNode=self._parameterNode.transformNode,
+                scale=scale,
+                name=f"{self._parameterNode.backgroundVolume.GetName()}_{percentage}pct"
+            )
+            
+            # Add to sequence with percentage as index value
+            timeValue = str(percentage)
+            self.sequenceNode.SetDataNodeAtValue(transformedVolume, timeValue)
+            
+            # Remove the individual node from scene (sequence keeps a copy)
+            slicer.mrmlScene.RemoveNode(transformedVolume)
+        
+        # Set up sequence browser properties
+        self.sequenceBrowserNode.SetPlaybackRateFps(10)
+        self.sequenceBrowserNode.SetPlaybackActive(False)
+        self.sequenceBrowserNode.SetRecording(self.sequenceNode, False)
+        
+        # CRITICAL: Set initial item to 100% (index 9) BEFORE getting proxy node
+        self.sequenceBrowserNode.SetSelectedItemNumber(9)
+        
+        # CRITICAL: Get the proxy node - this is what gets displayed
+        proxyNode = self.sequenceBrowserNode.GetProxyNode(self.sequenceNode)
+        
+        if not proxyNode:
+            logging.error("Failed to get proxy node from sequence browser!")
+            return
+        
+        # Store proxy node for later use
+        self.sequenceProxyNode = proxyNode
+        
+        logging.info(f"Proxy node created: {proxyNode.GetName()}")
+        
+        # Set the proxy node as background in all slice views
+        layoutManager = slicer.app.layoutManager()
+        for sliceViewName in layoutManager.sliceViewNames():
+            compositeNode = layoutManager.sliceWidget(sliceViewName).mrmlSliceCompositeNode()
+            compositeNode.SetBackgroundVolumeID(proxyNode.GetID())
+            logging.info(f"Set {sliceViewName} background to proxy node")
+        
+        # Add observer to sync slider when sequence changes
+        self.sequenceBrowserObserverTag = self.sequenceBrowserNode.AddObserver(
+            vtk.vtkCommand.ModifiedEvent,
+            self.onSequenceBrowserIndexChanged
+        )
+        
+        logging.info(f"Created sequence with {self.sequenceNode.GetNumberOfDataNodes()} volumes")
+
+
+    def onSequenceBrowserIndexChanged(self, caller, event):
+        """
+        Called when sequence browser index changes (e.g., from toolbar controls).
+        Updates the slider to match.
+        """
+
+
+        if self.isUpdatingSequence:
+            return
+        
+        self.isUpdatingSequence = True
+        
+        try:
+            itemIndex = self.sequenceBrowserNode.GetSelectedItemNumber()
+            # Map index (0-9) to slider value (10-100)
+            sliderValue = (itemIndex + 1) * 10
+            
+            self.ui.incrementalSlider.blockSignals(True)
+            self.ui.incrementalSlider.setValue(sliderValue)
+            self.ui.incrementalSlider.blockSignals(False)
+            
+            logging.info(f"Sequence changed to item {itemIndex} ({sliderValue}%)")
+        finally:
+            self.isUpdatingSequence = False
+
+       
+
+
+    # ╔══════════════════════════════════════╗
+    # ║     Slicer Module Functions          ║
+    # ╚══════════════════════════════════════╝
+
+        
+    def setupWithResourcePath(self):
+        """Alternative approach using module resource path"""
+        print("setupWithResourcePath")
+        # Get icon path relative to module resources
+        iconPath = os.path.join(
+            os.path.dirname(self.resourcePath("")),
+            "Resources",
+            "Icons",
+            "jacobian_icon.png"
+        )
+        
+        
+        if os.path.exists(iconPath):
+            icon = qt.QIcon(iconPath)
+            self.ui.loadDisplacementButton.setIcon(icon)
+            self.ui.loadDisplacementButton.setIconSize(qt.QSize(80, 50))
+            
+            # Make the button larger to accommodate icon
+            self.ui.loadDisplacementButton.setMinimumSize(180, 60)
+        else:
+            logging.warning(f"Icon file not found at: {iconPath}")
+
+
+    def cleanup(self) -> None:
+        """Called when the application closes and the module widget is destroyed."""
+        self.removeObservers()
+        for interactor, tag in getattr(self, "sliceObservers", []):
+            interactor.RemoveObserver(tag)
+            self.sliceObservers = []
+        for dn, tag in getattr(self, "_activeWatchers", []):
+            try:
+                dn.RemoveObserver(tag)
+            except:
+                pass
+        self._activeWatchers = []
+
+        if hasattr(self, 'crosshairNode') and self.crosshairNode and hasattr(self, 'crosshairObserverTag'):
+            if self.crosshairObserverTag is not None:
+                self.crosshairNode.RemoveObserver(self.crosshairObserverTag)
+                self.crosshairObserverTag = None
+
+        crosshairNode = slicer.mrmlScene.GetFirstNodeByClass('vtkMRMLCrosshairNode')
+        if crosshairNode:
+            crosshairNode.RemoveAllObservers()
+            # print("Removed all crosshair observers")
+
+        if self.sequenceBrowserObserverTag and self.sequenceBrowserNode:
+            self.sequenceBrowserNode.RemoveObserver(self.sequenceBrowserObserverTag)
+            self.sequenceBrowserObserverTag = None
+
+
+    def onSceneUpdated(self, caller, event):
+        self.updateLandmarkSelectorComboBox()
+    
+    
+    def enter(self) -> None:
+        """Called each time the user opens this module."""
+        # Make sure parameter node exists and observed
+
+        
+        self.initializeParameterNode()
+
+        # re-acquire or create mouse label node
+        #This breaks!!:
+        #self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
+        # sync checkbox to match visibility
+        self.updateHoverCheckboxFromNode()
+
+        # sync checkbox to match visibility 
+        self.updateVisualizationCheckboxFromNode()
+
+
+    def exit(self) -> None:
+        """Called each time the user opens a different module."""
+        # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
+        if self._parameterNode:
+            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
+            self._parameterNodeGuiTag = None
+            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+
+    def onSceneStartClose(self, caller, event) -> None:
+        """Called just before the scene is closed."""
+        # Parameter node will be reset, do not use it anymore
+        self.setParameterNode(None)
+
+    def onSceneEndClose(self, caller, event) -> None:
+        """Called just after the scene is closed."""
+        # If this module is shown while the scene is closed then recreate a new parameter node immediately
+        if self.parent.isEntered:
+            self.initializeParameterNode()
+
+
+    def initializeParameterNode(self) -> None:
+        """Ensure parameter node exists and observed."""
+        self.setParameterNode(self.logic.getParameterNode())
+        
+      
+        # Reset the slice viewers to have no foreground initially on entering and reloading module - much cleaner - NO LONGER DOING THIS
+        layoutManager = slicer.app.layoutManager()
+        # for sliceViewName in layoutManager.sliceViewNames():
+        #     compositeNode = layoutManager.sliceWidget(sliceViewName).mrmlSliceCompositeNode()
+        #     compositeNode.SetForegroundVolumeID(None)
+    
+        backgroundVolumeID = self._parameterNode.backgroundVolume.GetID() if self._parameterNode.backgroundVolume else None
+        
+        if backgroundVolumeID and self._parameterNode.backgroundVolume.GetDisplayNode():
+            displayNode = self._parameterNode.backgroundVolume.GetDisplayNode()
+            displayNode.SetAndObserveColorNodeID("vtkMRMLColorTableNodeGrey")
+            displayNode.AutoWindowLevelOn()
+
+        referenceVolumeID = self._parameterNode.referenceVolume.GetID() if self._parameterNode.referenceVolume else None
+        
+        if referenceVolumeID and self._parameterNode.referenceVolume.GetDisplayNode():
+            displayNode = self._parameterNode.referenceVolume.GetDisplayNode()
+            displayNode.SetAndObserveColorNodeID("vtkMRMLColorTableNodeGrey")
+            displayNode.AutoWindowLevelOn()
+
+    def setParameterNode(self, inputParameterNode: Optional[DeformViewParameterNode]) -> None:
+        """
+        Set and observe parameter node.
+        Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
+        """
+
+        if self._parameterNode:
+            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
+            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+        self._parameterNode = inputParameterNode
+        if self._parameterNode:
+            # Note: in the .ui file, a Qt dynamic property called "SlicerParameterName" is set on each
+            # ui element that needs connection.
+            self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
+
+            self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+            self._checkCanApply() 
+
+
+
+    def _checkCanApply(self, caller=None, event=None) -> None:
+        
+        # make sure there's a reference MRI and transformation
+        if (
+            self._parameterNode
+            and self._parameterNode.referenceVolume
+            and self._parameterNode.transformNode
+            and self._parameterNode.backgroundVolume
+        ):
+            self.ui.applyButton.toolTip = _("Compute voxel-wise displacement magnitude")
+            self.ui.applyButton.enabled = True
+        else:
+            # self.ui.applyButton.toolTip = _("Select reference volume and transform")
+            self.ui.applyButton.enabled = False
+
+
+
+
+
+    # ╔══════════════════════════════════════╗
+    # ║     CORE BUTTON FUNCTIONALITIES      ║
+    # ╚══════════════════════════════════════╝
+
+
+    def onApplyButton(self) -> None:
+        """
+        Run processing when user clicks 'Compute Mapping' button.
+        """
+        with slicer.util.tryWithErrorDisplay(_("Failed to compute voxel-wise displacement."), waitCursor=True):
+            
+            logging.info(f"Reference Volume: {self._parameterNode.referenceVolume}")
+            logging.info(f"Background Volume: {self._parameterNode.backgroundVolume}")
+            logging.info(f"Transform Node: {self._parameterNode.transformNode}")
+
+            hoverWasEnabled = self.ui.enableHoverDisplayCheckbox.isChecked()
+            
+            #  NEW: Reset background volume to have no transform
+            if self._parameterNode.backgroundVolume:
+                self._parameterNode.backgroundVolume.SetAndObserveTransformNodeID(None)
+                logging.info("Reset background volume transform to identity")
+            
+            # Create displacement field (for visualization)
+            displacementVolume = self.logic.computeDisplacementMagnitude(
+                referenceVolume=self._parameterNode.referenceVolume,
+                transformNode=self._parameterNode.transformNode,
+                defaultColourMap=self.defaultColorNodeID,
+                scale=1.0
+            )
+            
+            # Create Jacobian volume
+            jacobianVolume = self.logic.computeJacobianMagnitude(
+                referenceVolume=self._parameterNode.referenceVolume,
+                transformNode=self._parameterNode.transformNode,
+                defaultColourMap=self.defaultColorNodeID
+            )
+            
+            # Store original arrays for scaling
+            imageData = displacementVolume.GetImageData()
+            scalars = imageData.GetPointData().GetScalars()
+            self._fullDisplacementArray = vtk_to_numpy(scalars).copy()
+            
+            jacImageData = jacobianVolume.GetImageData()
+            jacScalars = jacImageData.GetPointData().GetScalars()
+            self._fullJacobianArray = vtk_to_numpy(jacScalars).copy()
+            
+            logging.info(f"Stored original arrays - Displacement range: [{self._fullDisplacementArray.min():.2f}, {self._fullDisplacementArray.max():.2f}]")
+            
+            # Apply transform to BOTH volumes so they update together spatially
+            transformNode = self._parameterNode.transformNode
+            
+            # UPDATED: Apply transform to background volume (now starting from identity)
+            self._parameterNode.backgroundVolume.SetAndObserveTransformNodeID(transformNode.GetID())
+            
+            # Apply transform to displacement magnitude volume
+            displacementVolume.SetAndObserveTransformNodeID(transformNode.GetID())
+            
+            # NEW: Reset transform scale to 100% (important!)
+            bsplineTransform = transformNode.GetTransformFromParent()
+            if bsplineTransform and hasattr(bsplineTransform, 'SetDisplacementScale'):
+                bsplineTransform.SetDisplacementScale(1.0)
+                logging.info("Reset transform scale to 100%")
+            
+            # Setup displacement volume display
+            dispDisplay = displacementVolume.GetDisplayNode()
+            if not dispDisplay:
+                displacementVolume.CreateDefaultDisplayNodes()
+                dispDisplay = displacementVolume.GetDisplayNode()
+            
+            if dispDisplay:
+                dispDisplay.AutoWindowLevelOn()
+                dispDisplay.SetScalarVisibility(True)
+            
+            # Set default selections
+            if hasattr(self.ui, "loadedTransformVolume") and displacementVolume:
+                self.ui.loadedTransformVolume.setEnabled(True)
+                self.ui.loadedTransformVolume.setCurrentNode(displacementVolume)
+            
+            # Set default color
+            colorNode = self.ui.colorMapSelector.currentNode()
+            if colorNode is None:
+                colorNode = slicer.util.getFirstNodeByClassByName('vtkMRMLColorTableNode', 'fMRI')
+            
+            self.ui.colorMapSelector.setEnabled(True)
+            self.ui.colorMapSelector.setCurrentNode(colorNode)
+            
+            # Set background volume in slice views
+            slicer.util.setSliceViewerLayers(
+                background=self._parameterNode.backgroundVolume,
+                foreground=displacementVolume,
+                foregroundOpacity=self.ui.opacitySlider.value / 100
+            )
+            
+            # Load displacement visualization
+            self.ui.loadedTransformVolume.setCurrentNode(displacementVolume)
+            self.onLoadDisplacementVolume(flag=0)
+            
+            # UPDATED: Reset incremental slider to 100%
+            if hasattr(self.ui, 'incrementalSlider'):
+                self.isUpdatingSequence = True
+                self.ui.incrementalSlider.setValue(100)
+                self.ui.incrementalSlider.setEnabled(True)
+                self.isUpdatingSequence = False
+                logging.info("Reset incremental slider to 100%")
+            
+            # Store volumes for reference
+            self.displacementMagnitudeVolume = displacementVolume
+            self.jacobianVolume = jacobianVolume
+
+            if hoverWasEnabled:
+                # Small delay to ensure everything is set up
+                qt.QTimer.singleShot(100, lambda: self.ensureHoverDisplayActive())
+            
+            logging.info("Transform applied to both background and displacement volumes")
+
+
     def onLoadDisplacementVolume(self, flag:int) -> None:
 
         '''
@@ -2326,7 +2120,7 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
         
-        self.onLoadExpertLabelsClicked()
+        #self.onLoadExpertLabelsClicked()
 
         #self.onToggleDisplacementVisualizationDisplay(True)
         
@@ -2526,55 +2320,83 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-    def windowLevelFlagUpdate(self, flag, volumeNode):
-
-        displayNode = volumeNode.GetDisplayNode()
-        if flag == 0: #Displacement magnitude
-            window = self.defaultWindow_DisplacementMag
-            level = self.defaultLevel_DisplacementMag
-
-            # print("window (DM): ", window, "level (DM): ", level)
-
-        elif flag == 1: #Jacobian
-            window = self.defaultLevel_Jacobian
-            level = self.defaultLevel_Jacobian
-
-            # print("window (Jacobian): ", window, "level (Jacobian): ", level)
-
-        minValue = level - window / 2.0
-        maxValue = level + window / 2.0
-
-        imageData = volumeNode.GetImageData()
-        if not imageData:
-            return
-            
-        scalarRange = imageData.GetScalarRange()
-        dataMin = scalarRange[0]
-        dataMax = scalarRange[1]
-        
-        # Set slider range based on data range (not threshold range)
-        padding = (dataMax - dataMin) * 0.1
-        self.ui.windowLevelSlider.minimum = dataMin - padding
-        self.ui.windowLevelSlider.maximum = dataMax + padding
-        
-        # Set slider values to the threshold/visualization range
-        self.ui.windowLevelSlider.minimumValue = minValue
-        self.ui.windowLevelSlider.maximumValue = maxValue
-        
-        # Set spin box ranges
-        self.ui.windowSpinBox.minimum = 0
-        self.ui.windowSpinBox.maximum = (dataMax - dataMin) * 2
-        self.ui.levelSpinBox.minimum = dataMin - padding
-        self.ui.levelSpinBox.maximum = dataMax + padding
-
-        self.updateVolumeWindowLevel(window=window, level=level)
-        # disabledModify = displayNode.StartModify()
-        # displayNode.SetAutoWindowLevel(0)
-        # displayNode.SetWindowLevel(window, level)
-        # displayNode.EndModify(disabledModify)
     
-           
+    # ╔══════════════════════════════════════╗
+    # ║          MOUSE CURSOR                ║
+    # ╚══════════════════════════════════════╝
+    
+    def ensureHoverDisplayActive(self):
+        """
+        Ensure the hover display is properly active.
+        Call this after transform modifications that might disrupt the observer.
+        """
+        if not self.ui.enableHoverDisplayCheckbox.isChecked():
+            return
+        
+        # Check if observer exists
+        if self.crosshairObserverTag is None:
+            logging.info("Hover display enabled but observer missing - re-establishing")
+            
+            # Ensure label node exists
+            if not hasattr(self, 'labelMarkupNode') or not self.labelMarkupNode:
+                self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
+            
+            # Re-add observer
+            if self.crosshairNode:
+                self.crosshairObserverTag = self.crosshairNode.AddObserver(
+                    slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent,
+                    self.onMouseMoved
+                )
+                logging.info("Re-established crosshair observer")
+        
+        # Verify display node visibility
+        if hasattr(self, 'labelMarkupNode') and self.labelMarkupNode:
+            disp = self.labelMarkupNode.GetDisplayNode()
+            if disp and not disp.GetVisibility2D():
+                disp.SetVisibility2D(True)
+                disp.SetPointLabelsVisibility(True)
+                logging.info("Re-enabled label node visibility")
 
+
+    #Creates the label node for the cursor
+    def getOrCreateLabelNodeForCurrentVolume(self):
+        """Get or create a label node specific to the currently loaded volume"""
+        
+        volumeNode = self.ui.loadedTransformVolume.currentNode()
+        
+        # Get or create the single shared label node
+        labelNodeName = "DeformView_MouseValueLabel"
+        node = slicer.mrmlScene.GetFirstNodeByName(labelNodeName)
+        # node.GetDisplayNode().SetGlyphScale(8)
+        #print("label exists")
+        #if it doesn't exist or 
+        if not node: #or not node.GetDisplayNode().GetVisibility2D():
+            node = slicer.mrmlScene.AddNewNodeByClass(
+                "vtkMRMLMarkupsFiducialNode",
+                labelNodeName
+            )
+            node.AddControlPoint(0, 0, 0)
+            node.SetLocked(True)
+            node.SetMarkupLabelFormat("{label}")
+            node.GetDisplayNode().SetVisibility2D(False)
+            node.GetDisplayNode().SetVisibility3D(False)
+            node.SetNthControlPointLabel(0, "")
+            node.GetDisplayNode().SetColor([0.0, 0.0, 0.0])
+            node.GetDisplayNode().SetSelectedColor([0.0, 0.0, 0.0])
+            node.GetDisplayNode().GetTextProperty().SetColor(0.0, 0.0, 0.0)
+        
+        # Store reference on volume
+        # volumeNode.SetAttribute("DeformView_LabelNodeID", node.GetID())
+        
+        return node
+        
+
+
+
+    
+    # ╔══════════════════════════════════════╗
+    # ║         INITIALIZE STATE             ║
+    # ╚══════════════════════════════════════╝
 
     def initializeWindowLevelControls(self, volumeNode):
         '''
@@ -2733,151 +2555,6 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         print(f"Threshold range: [{minValue}, {maxValue}]")
 
 
-
-    def onResetWindowLevel(self, volumeNode):
-        '''
-        Reset window/level to default values
-        '''
-        if self.defaultWindow is None or self.defaultLevel is None:
-            # No defaults stored, try to reinitialize
-            selectedVolume = self.ui.loadedTransformVolume.currentNode()
-            if selectedVolume:
-                self.initializeWindowLevelControls(selectedVolume)
-            return
-        
-        displayNode = volumeNode.GetDisplayNode()
-
-        colorNode = displayNode.GetColorNode()
-        
-        if colorNode and "JacobianMap" in colorNode.GetName():
-            window = self.defaultWindow_Jacobian
-            level = self.defaultLevel_Jacobian
-
-        else:
-            window = self.defaultWindow_DisplacementMag
-            level = self.defaultLevel_DisplacementMag
-
-        # Use stored defaults
-
-        # Block signals to prevent multiple updates
-        self.updatingWindowLevel = True
-        
-        # # Update all controls
-        # self.ui.windowSpinBox.value = window
-        # self.ui.levelSpinBox.value = level
-        
-        # minVal = level - window / 2.0
-        # maxVal = level + window / 2.0
-        # self.ui.windowLevelSlider.minimumValue = minVal
-        # self.ui.windowLevelSlider.maximumValue = maxVal
-        
-        # Update display node
-        self.updateVolumeWindowLevel(window, level)
-        
-        self.updatingWindowLevel = False
-        
-        print(f"Reset to default: window={window}, level={level}")
-
-
-
-    def onWindowLevelSliderChanged(self, minVal, maxVal):
-        '''
-        Called when the double slider values change
-        Updates window/level based on slider min/max
-        '''
-        if self.updatingWindowLevel:
-            return
-        
-        self.updatingWindowLevel = True
-        
-        # Calculate window and level from slider min/max
-        window = maxVal - minVal
-        level = (maxVal + minVal) / 2.0
-        
-        # Update spin boxes
-        self.ui.windowSpinBox.value = window
-        self.ui.levelSpinBox.value = level
-        
-        # Update display node
-        self.updateVolumeWindowLevel(window, level)
-        
-        self.updatingWindowLevel = False
-
-        
-    def onWindowSpinBoxChanged(self, window):
-        '''
-        Called when window spinbox changes
-        Updates level spinbox and slider
-        '''
-        if self.updatingWindowLevel:
-            return
-        
-        self.updatingWindowLevel = True
-        
-        # Get current level
-        level = self.ui.levelSpinBox.value
-        
-        # Calculate min/max for slider
-        minVal = level - window / 2.0
-        maxVal = level + window / 2.0
-        
-        # Update slider
-        self.ui.windowLevelSlider.minimumValue = minVal
-        self.ui.windowLevelSlider.maximumValue = maxVal
-        
-        # Update display node
-        self.updateVolumeWindowLevel(window, level)
-        
-        self.updatingWindowLevel = False
-
-
-    def onLevelSpinBoxChanged(self, level):
-        '''
-        Called when level spinbox changes
-        Updates window spinbox and slider
-        '''
-        if self.updatingWindowLevel:
-            return
-        
-        self.updatingWindowLevel = True
-        
-        # Get current window
-        window = self.ui.windowSpinBox.value
-        
-        # Calculate min/max for slider
-        minVal = level - window / 2.0
-        maxVal = level + window / 2.0
-        
-        # Update slider
-        self.ui.windowLevelSlider.minimumValue = minVal
-        self.ui.windowLevelSlider.maximumValue = maxVal
-        
-        # Update display node
-        self.updateVolumeWindowLevel(window, level)
-        
-        self.updatingWindowLevel = False
-
-
-    def updateVolumeWindowLevel(self, window, level):
-        '''
-        Apply window/level to the currently loaded volume's display node
-        '''
-        selectedVolume = self.ui.loadedTransformVolume.currentNode()
-        if not selectedVolume:
-            return
-            
-        displayNode = selectedVolume.GetDisplayNode()
-        if not displayNode:
-            return
-        
-        # Update the display node
-        disabledModify = displayNode.StartModify()
-        displayNode.SetAutoWindowLevel(0)
-        displayNode.SetWindowLevel(window, level)
-        displayNode.EndModify(disabledModify)
-
-        
-
     def getBrainShiftFlag(self, volumeNode):
         """
         Returns the BrainShiftFlag value stored in FieldData or PointData.
@@ -2909,212 +2586,6 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         return None
 
 
-    def onMouseMoved(self, observer, eventid):
-        # if markup node doesn't exist do nothing
-        #print("self.ui.loadedTransformVolume.currentNode()", self.ui.loadedTransformVolume.currentNode())
-        #print("elf.ui.loadedTransformVolume.currentNode().GetDisplayNode())", self.ui.loadedTransformVolume.currentNode().GetDisplayNode())
-        
-        if not self.ui.loadedTransformVolume.currentNode() or not self.ui.loadedTransformVolume.currentNode().GetDisplayNode():
-            #print("no volume")
-            return
-        
-        # Check if labelMarkupNode exists and has a display node
-        if not hasattr(self, 'labelMarkupNode') or not self.labelMarkupNode:
-            print("no markup node")
-            return
-        
-        displayNode = self.labelMarkupNode.GetDisplayNode()
-        if not displayNode:
-            print("no display node")
-            return
-        
-        if not displayNode.GetVisibility2D():
-            return
-
-        ras = [0.0, 0.0, 0.0] 
-        self.crosshairNode.GetCursorPositionRAS(ras)
-    
-        # move label to current RAS position
-        self.labelMarkupNode.SetNthControlPointPosition(0, ras)
-
-        #print("in mouse moved")
-
-        # sample displacement volume at that RAS location
-        #displacementVolume = self.ui.existingDisplacementVolumeSelector.currentNode()
-        displacementVolume = self.ui.loadedTransformVolume.currentNode()
-
-        if not displacementVolume:
-            self.labelMarkupNode.SetNthControlPointLabel(0, "No volume")
-            return
-        
-
-        # convert RAS to IJK
-        rasToIjk = vtk.vtkMatrix4x4()
-        displacementVolume.GetRASToIJKMatrix(rasToIjk)
-        ijk = [0.0, 0.0, 0.0, 1.0]
-        ras_hom = list(ras) + [1.0]
-        rasToIjk.MultiplyPoint(ras_hom, ijk)
-        ijk = [int(round(i)) for i in ijk[:3]]
-
-        dims = displacementVolume.GetImageData().GetDimensions()
-        if any(i < 0 or i >= d for i, d in zip(ijk, dims)):
-            # self.labelMarkupNode.SetNthControlPointLabel(0, "Out of bounds")
-            self.labelMarkupNode.SetNthControlPointLabel(0, "")
-            return
-
-        value = displacementVolume.GetImageData().GetScalarComponentAsDouble(*ijk, 0)
-
-        # get flag
-        # flag = self.getBrainShiftFlag(displacementVolume)
-        flag = getattr(self, "currentVisualizationFlag", 0)
-
-
-        # apply flag logic
-        if flag == 0:
-            # displacement magnitude (mm)
-            label = f"{value:.2f} mm"
-        elif flag == 1:
-            # display percent
-            label = f"{value:+.1f}%"
-        else:
-            label = f"{value:.2f}"
-
-        self.labelMarkupNode.SetNthControlPointLabel(0, label)
-
-
-    def onToggleHoverDisplay(self, enabled: bool) -> None:
-        # print("on Toggle Hover Display")
-        
-
-        self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
-        disp = self.labelMarkupNode.GetDisplayNode()
-
-        # set it to be CrossDot2D
-        if disp:
-            # Set default node type
-            disp.SetGlyphType(3)  # if you want to change go look at markups -> display -> advanced -> glyphtype and choose number in list
-            disp.SetGlyphScale(8) 
-
-        if enabled:
-            # print("enabled")
-            
-            # make mouse cursor invisible
-            for sliceName in slicer.app.layoutManager().sliceViewNames():
-                sliceWidget = slicer.app.layoutManager().sliceWidget(sliceName)
-                sliceView = sliceWidget.sliceView()
-                sliceView.setViewCursor(qt.Qt.BlankCursor)
-
-            # FORCE all relevant visibilities ON
-            self.labelMarkupNode.SetDisplayVisibility(True)       # main visibility toggle
-            disp.SetVisibility(True)                              # fallback
-            disp.SetVisibility2D(True)
-            disp.SetVisibility3D(False)                           # i want 2D only
-            disp.SetPointLabelsVisibility(True)                   # show text
-            disp.SetTextScale(4.5)                                # initial label size
-
-            # connect marksup size toggle
-            self.ui.markupSizeSlider.setMinimum(50)     
-            self.ui.markupSizeSlider.setMaximum(200)   
-            self.ui.markupSizeSlider.setValue(int(disp.GetGlyphScale() * 10))  
-            self.ui.markupSizeSlider.setSingleStep(1)
-            self.ui.markupSizeSlider.valueChanged.connect(self.onMarkupNodeSizeChanged)
-
-            # setup slider to control text size
-            self.ui.markupTextSizeSlider.setMinimum(10)  # corresponds to 1.0
-            self.ui.markupTextSizeSlider.setMaximum(100) # corresponds to 10.0
-            self.ui.markupTextSizeSlider.setValue(int(disp.GetTextScale() * 10))  # match current label size
-            self.ui.markupTextSizeSlider.setSingleStep(1)
-            self.ui.markupTextSizeSlider.valueChanged.connect(self.onMarkupTextChanged)
-
-            if self.crosshairObserverTag is None:
-                # print('self.crosshairObserver is None')
-                self.crosshairObserverTag = self.crosshairNode.AddObserver(
-                    slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent,
-                    self.onMouseMoved
-            )
-
-            # if self.crosshairObserverTag is None:
-            #     self.crosshairObserverTag = self.crosshairNode.AddObserver(
-            #         slicer.vtkMRMLCrosshairNode.CursorPositionModifiedEvent,
-            #         self.onMouseMoved
-            #     )
-
-            
-
-        else:
-            # FORCE everything off
-            self.labelMarkupNode.SetDisplayVisibility(False)
-            disp.SetVisibility(False)
-            disp.SetVisibility2D(False)
-            disp.SetVisibility3D(False)
-            disp.SetPointLabelsVisibility(False)
-
-            if self.crosshairObserverTag is not None:
-                self.crosshairNode.RemoveObserver(self.crosshairObserverTag)
-                self.crosshairObserverTag = None
-
-            # restore cursor to default
-            for sliceName in slicer.app.layoutManager().sliceViewNames():
-                sliceWidget = slicer.app.layoutManager().sliceWidget(sliceName)
-                sliceView = sliceWidget.sliceView()
-                sliceView.setViewCursor(qt.Qt.ArrowCursor)
-    
-
-    def onMarkupNodeSizeChanged(self, value):
-        """Adjust the glyph size of the labelMarkupNode."""
-        if hasattr(self, "labelMarkupNode") and self.labelMarkupNode:
-            disp = self.labelMarkupNode.GetDisplayNode()
-            if disp:
-                disp.SetGlyphScale(value / 10.0)
-
-
-    def onMarkupTextChanged(self, value):
-        # Adjust the size of the markup labels based on slider value
-        if hasattr(self, "labelMarkupNode") and self.labelMarkupNode:
-            disp = self.labelMarkupNode.GetDisplayNode()
-            if disp:
-                # Scale slider value down by 10 to allow float sizes like 3.5
-                disp.SetTextScale(value / 10.0)
-
-
-
-
-
-    def onToggleDisplacementVisualizationDisplay(self, enabled: bool) -> None:
-        # print("on Displacement Visualization Toggle")
-
-        self.volumeNode = self.ui.loadedTransformVolume.currentNode()
-        
-        if not self.volumeNode:
-            return
-        
-        displayNode = self.volumeNode.GetDisplayNode()
-
-        if enabled:
-            # print("enabled")
-            
-            # Show in slice views by setting foreground opacity
-            normalizedValue = self.ui.opacitySlider.value / 100
-            
-            for sliceName in slicer.app.layoutManager().sliceViewNames():
-                sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
-                sliceComposite.SetForegroundVolumeID(self.volumeNode.GetID())
-                sliceComposite.SetForegroundOpacity(normalizedValue)
-            
-            # Optional: also enable 3D visibility if needed
-            displayNode.SetVisibility3D(False)  # Keep 3D off if you only want 2D
-
-        else:
-            # print("disabled")
-            
-            # Hide from slice views by setting foreground to None or opacity to 0
-            for sliceName in slicer.app.layoutManager().sliceViewNames():
-                sliceComposite = slicer.app.layoutManager().sliceWidget(sliceName).mrmlSliceCompositeNode()
-                # Option 1: Remove as foreground entirely
-                sliceComposite.SetForegroundVolumeID(None)
-                # Option 2: Or just set opacity to 0
-                # sliceComposite.SetForegroundOpacity(0.0)
-
 
     def getCurrentDisplacementVolumeNode(self):
         """Return the displacement volume node, creating it if necessary."""
@@ -3127,19 +2598,79 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             return None
         return volumeNode
     
-    def getForegroundVolumeNode(self):
-        """Return the volume node currently set as foreground in any slice viewer."""
-        layoutManager = slicer.app.layoutManager()
-        for sliceName in layoutManager.sliceViewNames():
-            sliceComposite = layoutManager.sliceWidget(sliceName).mrmlSliceCompositeNode()
-            fgVolumeID = sliceComposite.GetForegroundVolumeID()
-            if fgVolumeID:
-                node = slicer.mrmlScene.GetNodeByID(fgVolumeID)
-                if node:
-                    return node
-        return None
 
-                
+
+    # ╔══════════════════════════════════════╗
+    # ║             UPDATE STATE             ║
+    # ╚══════════════════════════════════════╝
+    
+    def windowLevelFlagUpdate(self, flag, volumeNode):
+
+        displayNode = volumeNode.GetDisplayNode()
+        if flag == 0: #Displacement magnitude
+            window = self.defaultWindow_DisplacementMag
+            level = self.defaultLevel_DisplacementMag
+
+            # print("window (DM): ", window, "level (DM): ", level)
+
+        elif flag == 1: #Jacobian
+            window = self.defaultLevel_Jacobian
+            level = self.defaultLevel_Jacobian
+
+            # print("window (Jacobian): ", window, "level (Jacobian): ", level)
+
+        minValue = level - window / 2.0
+        maxValue = level + window / 2.0
+
+        imageData = volumeNode.GetImageData()
+        if not imageData:
+            return
+            
+        scalarRange = imageData.GetScalarRange()
+        dataMin = scalarRange[0]
+        dataMax = scalarRange[1]
+        
+        # Set slider range based on data range (not threshold range)
+        padding = (dataMax - dataMin) * 0.1
+        self.ui.windowLevelSlider.minimum = dataMin - padding
+        self.ui.windowLevelSlider.maximum = dataMax + padding
+        
+        # Set slider values to the threshold/visualization range
+        self.ui.windowLevelSlider.minimumValue = minValue
+        self.ui.windowLevelSlider.maximumValue = maxValue
+        
+        # Set spin box ranges
+        self.ui.windowSpinBox.minimum = 0
+        self.ui.windowSpinBox.maximum = (dataMax - dataMin) * 2
+        self.ui.levelSpinBox.minimum = dataMin - padding
+        self.ui.levelSpinBox.maximum = dataMax + padding
+
+        self.updateVolumeWindowLevel(window=window, level=level)
+        # disabledModify = displayNode.StartModify()
+        # displayNode.SetAutoWindowLevel(0)
+        # displayNode.SetWindowLevel(window, level)
+        # displayNode.EndModify(disabledModify)
+    
+           
+    def updateVolumeWindowLevel(self, window, level):
+        '''
+        Apply window/level to the currently loaded volume's display node
+        '''
+        selectedVolume = self.ui.loadedTransformVolume.currentNode()
+        if not selectedVolume:
+            return
+            
+        displayNode = selectedVolume.GetDisplayNode()
+        if not displayNode:
+            return
+        
+        # Update the display node
+        disabledModify = displayNode.StartModify()
+        displayNode.SetAutoWindowLevel(0)
+        displayNode.SetWindowLevel(window, level)
+        displayNode.EndModify(disabledModify)
+
+        
     def updateHoverCheckboxFromNode(self):
         # Syncs the hover display checkbox with the actual visibility of the mouse label node 
         self.labelMarkupNode = self.getOrCreateLabelNodeForCurrentVolume()
@@ -3171,39 +2702,18 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
 
 
-    def getLandmarkLabel(self):
-        parent = slicer.util.mainWindow()  # safe parent for dialogs in Slicer
-
-        # First prompt
-        text1 = qt.QInputDialog.getText(
-            parent,
-            "Please name the first landmark file (derived from the source volume)",
-            "Name:",
-            qt.QLineEdit.Normal,  # Echo mode required!
-            ""                    # default text (optional)
-        )
-
-        if not text1:
-            slicer.util.errorDisplay("No name provided for first landmark file.")
-            return None, None
-
-        # Second prompt
-        text2 = qt.QInputDialog.getText(
-            parent,
-            "Please name the second landmark file (derived from the moving volume)",
-            "Name:",
-            qt.QLineEdit.Normal,
-            ""
-        )
-
-        if not text2:
-            slicer.util.errorDisplay("No name provided for second landmark file.")
-            return None, None
-
-        # print("Renamed to:", text1, text2)
-        return text1, text2
 
 
+ 
+
+
+                
+
+
+
+ 
+
+    ''' --------- UNUSED ADDITIONAL FUNCTIONALITY ---------------'''
     def getLandmarkLabel(self):
         parent = slicer.util.mainWindow()  # safe parent for dialogs in Slicer
 
@@ -3236,78 +2746,264 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         print("Renamed to:", text1, text2)
         return text1, text2
 
+    def getActivePairInfo(self):
 
-
-    def onThresholdSliderChanged(self, minValue, maxValue):
-
-        volumeNode = self.ui.loadedTransformVolume.currentNode()
-        if not volumeNode:
-            logging.warning("No displacement magnitude volume available for thresholding.")
-            return
+        activeNode = None
+        activeIndex = None
         
-        # dynamically set min and max value
-        displayNode = volumeNode.GetDisplayNode()
+        #find active landmark
+        for n in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+            if n is getattr(self, "labelMarkupNode", None) or not n.GetDisplayNode():
+                continue
+            if n.GetDisplayNode().GetActiveComponentType() != slicer.vtkMRMLMarkupsDisplayNode.ComponentControlPoint:
+                continue
+            idx = n.GetDisplayNode().GetActiveComponentIndex()
+            if idx is None or idx < 0:
+                continue
+            activeNode = n
+            activeIndex = idx
+            break
 
-
-    def onColourWindowSliderChanged(self, minValue, maxValue):
-
-        volumeNode = self.ui.loadedTransformVolume.currentNode()
-        if not volumeNode:
-            logging.warning("No displacement magnitude volume available for thresholding.")
-            return
+        if activeNode is None:
+            return None
         
-        # dynamically set min and max value
-        displayNode = volumeNode.GetDisplayNode()
+        #find pair landmark
+        pairNode = None
+        for lmrk in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+            if lmrk is not activeNode and lmrk is not getattr(self, "labelMarkupNode", None):
+                pairNode = lmrk
+                break
+        if pairNode is None:
+            return None
 
-        displayNode.AutoWindowLevelOff()
-        displayNode.SetThreshold(minValue, maxValue)
-        displayNode.SetApplyThreshold(True)
-        displayNode.Modified()
-        logging.info(f"Colour window applied: min = {minValue}, max = {maxValue}")
-
-        self.ui.colourWindowMinSpinBox.blockSignals(True)
-        self.ui.colourWindowMaxSpinBox.blockSignals(True)
-        self.ui.colourWindowMinSpinBox.setValue(minValue)
-        self.ui.colourWindowMaxSpinBox.setValue(maxValue)
-        self.ui.colourWindowMinSpinBox.blockSignals(False)
-        self.ui.colourWindowMaxSpinBox.blockSignals(False)
-
-
-    def onThresholdSliderChanged(self, minValue, maxValue):
-
-        volumeNode = self.ui.loadedTransformVolume.currentNode()
-        if not volumeNode:
-            logging.warning("No displacement magnitude volume available for thresholding.")
-            return
+        pairIndex = -1
+        if activeIndex < pairNode.GetNumberOfControlPoints():
+            pairIndex = activeIndex
+        if pairIndex < 0:
+            return None
         
-        # dynamically set min and max value
-        displayNode = volumeNode.GetDisplayNode()
+        #compute distance in IJK (mm)
+        rasA = [0.0, 0.0, 0.0]
+        rasB = [0.0, 0.0, 0.0]
+        activeNode.GetNthControlPointPositionWorld(activeIndex, rasA)
+        pairNode.GetNthControlPointPositionWorld(pairIndex, rasB)
+        vol = self.ui.loadedTransformVolume.currentNode()
+        ijkA = ijkB = None
+        if vol:
+            rasToIjk = vtk.vtkMatrix4x4()
+            vol.GetRASToIJKMatrix(rasToIjk)
 
-        displayNode.AutoWindowLevelOff()
-        displayNode.SetThreshold(minValue, maxValue)
-        displayNode.SetApplyThreshold(True)
-        displayNode.Modified()
-        logging.info(f"Threshold applied: min = {minValue}, max = {maxValue}")
+            ijkhA = [0.0, 0.0, 0.0, 1.0]
+            ras_hA = [rasA[0], rasA[1], rasA[2], 1.0]
+            rasToIjk.MultiplyPoint(ras_hA, ijkhA)
+            ijkA = [float(ijkhA[0]), float(ijkhA[1]), float(ijkhA[2])]
 
-        self.ui.thresholdMinSpinBox.blockSignals(True)
-        self.ui.thresholdMaxSpinBox.blockSignals(True)
-        self.ui.thresholdMinSpinBox.setValue(minValue)
-        self.ui.thresholdMaxSpinBox.setValue(maxValue)
-        self.ui.thresholdMinSpinBox.blockSignals(False)
-        self.ui.thresholdMaxSpinBox.blockSignals(False)
+            ijkhB = [0.0, 0.0, 0.0, 1.0]
+            ras_hB = [rasB[0], rasB[1], rasB[2], 1.0]
+            rasToIjk.MultiplyPoint(ras_hB, ijkhB)
+            ijkB = [float(ijkhB[0]), float(ijkhB[1]), float(ijkhB[2])]
+
+        dx = ijkA[0]-ijkB[0]
+        dy = ijkA[1]-ijkB[1]
+        dz = ijkA[2]-ijkB[2]
+        activeLabel = activeNode.GetNthControlPointLabel(activeIndex) or f"{activeNode.GetName()}-{activeIndex+1}"
+        pairLabel   = pairNode.GetNthControlPointLabel(pairIndex)   or f"{pairNode.GetName()}-{pairIndex+1}"
+        #print(f"{activeLabel}: IJK = {(ijkA)}")
+        #print(f"{pairLabel}: IJK = {(ijkB)}")
+        self.updateSelectedLandmarksDisplay(activeLabel, pairLabel)
+        return (dx*dx + dy*dy + dz*dz) ** 0.5 
+    
+
+    def updateLandmarkDistanceDisplay(self, dist: float) -> None:
+    
+        if dist is None:
+            self.ui.landmarkEuclidianDistance.setText("N/A")
+        else:
+            self.ui.landmarkEuclidianDistance.setText(f"{dist:.3f} mm")
+            self.ui.landmarkEuclidianDistance.setReadOnly(True)
+
+    
+    def updateSelectedLandmarksDisplay(self, activeLabel: str, pairLabel: str) -> None:
+        if not hasattr(self.ui, 'selectedLandmarks') or self.ui.selectedLandmarks is None:
+            return
+        self.ui.selectedLandmarks.setReadOnly(True)
+        self.ui.landmarkEuclidianDistance.setReadOnly(True)
+        self.ui.selectedLandmarks.setText(f"{activeLabel}  ↔  {pairLabel}")
 
 
-    def onMinSpinBoxChanged(self, value):
-        currentMax = self.ui.thresholdMaxSpinBox.value
-        self.ui.thresholdSlider.setValues(value, currentMax)
+    def onLandmarkSelectionChanged(self):
+        # Get all fiducial nodes
+        #allFiducials = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
+        fcsvFiducials = [
+            node for node in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
+            if node.GetStorageNode() and node.GetStorageNode().GetFileName().endswith('.fcsv')
+        ]
+        
+        # Get selected names from the combo box
+        selectedNames = []
+        for i in range(self.LandmarkSelectorComboBox.count):
+            if self.LandmarkSelectorComboBox.checkState(i) == qt.Qt.Checked :
+                selectedNames.append(self.LandmarkSelectorComboBox.itemText(i))
+
+        # Show only selected ones
+        for node in fcsvFiducials:
+            print("Gte nMae:",node.GetName())
+            displayNode = node.GetDisplayNode()
+            if not displayNode:
+                continue
+            if node.GetName() in selectedNames:
+                displayNode.SetUsePointColors(True)         # Use global color, not per-point
+                displayNode.SetVisibility(True)
+                displayNode.SetVisibility2D()
+                displayNode.SetTextScale(1.0)
+                
+                displayNode.SetActiveColor([1.0, 0.0, 1.0])   # Pink when active
+                displayNode.SetColor(1.0, 0.0, 1.0)           # Pink when not active
+                displayNode.SetSelectedColor(1.0, 0.0, 1.0)   # Pink when selected
+                displayNode.SetUseSelectedColor()       
+                
+                displayNode.SetGlyphScale(2.0)
+                displayNode.SetHandlesInteractive(False)
+                displayNode.SetInteractionHandleScale(0.0)
+            else:
+
+                displayNode.SetVisibility(False)
+                displayNode.SetVisibility2D(False)
 
 
-    def onMaxSpinBoxChanged(self, value):
-        currentMin = self.ui.thresholdMinSpinBox.value
-        self.ui.thresholdSlider.setValues(currentMin, value)
+    def watchActiveLabel(self):
+        
+        #observers for selected landmark
+        for n, tag in getattr(self, "_activeWatchers", []):
+            try: n.RemoveObserver(tag)
+            except: pass
+        self._activeWatchers = []
+        self._lastDistancePrinted = None
+
+        def onPointEnd(markupsNode, ev):
+            dn = markupsNode.GetDisplayNode()
+            if not dn:
+                return
+            if dn.GetActiveComponentType() != slicer.vtkMRMLMarkupsDisplayNode.ComponentControlPoint:
+                return
+            i = dn.GetActiveComponentIndex()
+            if i is None or i < 0 or i >= markupsNode.GetNumberOfControlPoints():
+                return
+
+            dist = self.getActivePairInfo()
+            if dist is None:
+                return
+            if self._lastDistancePrinted is not None and abs(dist - self._lastDistancePrinted) < 1e-6:
+                return
+            self._lastDistancePrinted = dist
+            #print(f"distance = {dist:.3f} mm")
+            self.updateLandmarkDistanceDisplay(dist)
+            
+        for n in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+            if n is getattr(self, "labelMarkupNode", None):
+                continue
+            tag = n.AddObserver(slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, onPointEnd)
+            self._activeWatchers.append((n, tag))
+            
+
+    def onLoadExpertLabelsClicked(self):
+        comboBox = self.ui.LandmarkSelectorComboBox
+        model = comboBox.model()
+        for i in range(comboBox.count):
+            #print("i", i)
+            index = model.index(i, 0)
+            itemText = comboBox.itemText(i)
+            try:
+                node = slicer.util.getNode(itemText)
+                displayNode = node.GetDisplayNode()
+                displayNode.SetVisibility(False)
+                displayNode.SetVisibility2D(False)
+            except:
+                print(f"Could not get node for: {itemText}")
+                continue
+            
+            checked = model.data(index, qt.Qt.CheckStateRole) == qt.Qt.Checked
+            displayNode = node.GetDisplayNode()
+
+            if node.IsA("vtkMRMLMarkupsFiducialNode") and checked:
+                if displayNode:
+                    print("Show Node", node.GetName())
+                    displayNode.SetVisibility(True)
+                    displayNode.SetVisibility2D(True)
+                    displayNode.SetGlyphScale(3.0)
+                    displayNode.SetTextScale(3.0)
+                    displayNode.SetActiveColor([1.0, 0.2, 0.5])
+                    displayNode.SetSelectedColor(0.0, 0.0, 0.0)
+                    displayNode.SetGlyphTypeFromString("CrossDot2D")
+                    displayNode.SetSelected(checked)
+                    displayNode.SetHandlesInteractive(False) #??
+                    displayNode.SetInteractionHandleScale(0.0)
+
+            else:
+                # print("don't show node", node.GetName()) #stores typed in landmark name
+                #displayNode = node.GetDisplayNode()
+                displayNode.SetVisibility(False)
+                displayNode.SetVisibility2D(False)
+                displayNode.SetGlyphScale(3.0)
 
 
-# DeformViewLogic
+    def onToggleUsDisplay(self) -> None:
+        usVolume = self.ui.referenceVolume.currentNode()
+        state = self.ui.enableUsBorderDisplay.checkState() 
+        self.logic.showNonZeroWireframe(foregroundVolume=usVolume, state=state)
+    
+
+        #Unused additional functionality
+    
+    
+    def onConvertTagFCSVButtonClicked(self):
+        filePath = qt.QFileDialog.getOpenFileName(
+            None, "Open Tag File", "", "Tag files (*.tag)"
+        )
+        text1, text2 = self.getLandmarkLabel()
+        print("Selected file:", filePath, text1, text2)
+        if filePath:
+            success = self.logic.loadTagFile(filePath, text1, text2)
+            if not success:
+                slicer.util.errorDisplay(f"Failed to load tag file: {filePath}")
+            else:
+                logging.info(f"Loaded tag file: {filePath}")
+    
+
+
+    #Unused functionality
+    def updateLandmarkSelectorComboBox(self):
+        '''
+        Tracks which files to add to the selection box for the available landmarks
+        '''
+        self.ui.LandmarkSelectorComboBox.clear()
+
+        #print("Landmark Selector Count", self.LandmarkSelectorComboBox.count)
+
+        #print("Update... ")
+        fiducialNodes = slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
+        
+        #print(f"fiducial Nodes", fiducialNodes)
+        #print("fiducial Nodes available", len(fiducialNodes))
+
+        for node in fiducialNodes:
+            if node == self.labelMarkupNode:
+                continue
+            self.ui.LandmarkSelectorComboBox.addItem(node.GetName()) #stores node name (string)
+
+        self.watchActiveLabel()
+        
+       
+
+
+
+
+
+
+
+
+
+
 class DeformViewLogic(ScriptedLoadableModuleLogic):
     """Logic for computing voxel-wise displacement from transformation field"""
 
@@ -3335,82 +3031,6 @@ class DeformViewLogic(ScriptedLoadableModuleLogic):
         return len(unique_values), unique_values
 
 
-    def loadTagFile(self, filepath, text1, text2):
-        print(f"Reading tag file: {filepath}")
-        print("Label: ", text2)
-        points1, points2 = self.read_tag_file(filepath)
-        if points1 is None or points2 is None or len(points1) == 0 or len(points2) == 0:
-            logging.error("No valid points found in tag file.")
-            return False
-        
-
-        # create fiducial nodes in Slicer scene
-        fiducialNode1 = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", f"{text1}") #the set of landmarks from the first volume registered
-        fiducialNode2 = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", f"{text2}") #the set of landmarks from the second volume registered
-
-        # add points from tag file to the fiducial nodes
-        for pt in points1:
-            fiducialNode1.AddControlPoint(pt)
-        for pt in points2:
-            fiducialNode2.AddControlPoint(pt)
-
-        displayNode1 = fiducialNode1.GetDisplayNode()
-        if displayNode1:
-            displayNode1.SetVisibility(False)            # Hide in 3D
-            displayNode1.SetVisibility2D(False)          # Hide in 2D slice views
-            displayNode1.SetSelectedColor(0.5, 0.5, 0.5) # Optional: make it less prominent when turned on
-            displayNode1.SetTextScale(5.0)               # Hide label text
-            #displayNode1.SetGlyphTypeFromString("None")  # Hide glyph icon
-            displayNode1.SetHandlesInteractive(False)    # Disable user interaction
-            #displayNode1.SetOpacity(1.0)
-            #displayNode1.SetGlyphScale(5.0)  
-        print("Number of points1:", fiducialNode1.GetNumberOfControlPoints())
-
-        displayNode2 = fiducialNode2.GetDisplayNode()
-        if displayNode2:
-            displayNode2.SetVisibility(False)            # Hide in 3D
-            displayNode2.SetVisibility2D(False)          # Hide in 2D slice views
-            displayNode2.SetSelectedColor(0.5, 0.5, 0.5) # Optional: make it less prominent when turned on
-            displayNode2.SetTextScale(5.0)               # Hide label text
-            displayNode2.SetOpacity(1.0)
-            displayNode2.SetGlyphScale(5.0)  
-            displayNode2.SetHandlesInteractive(False)    # Disable user interaction
-        
-        else:
-            slicer.util.errorDisplay("Failed to load landmark file.")
-        qt.QMessageBox.information(slicer.util.mainWindow(), "Success", "Success! \nLandmark files created and available in Data.")
-        print("Number of points2:", fiducialNode1.GetNumberOfControlPoints())
-
-        logging.info("Landmarks loaded and hidden.")
-        
-        logging.info(f"Created {len(points1)} landmarks in each set.")
-        return True
-    
-
-    def read_tag_file(self, filepath):
-
-        """Parse the tag file robustly and return two numpy arrays of points."""
-        source_points = []
-        target_points = []
-        try:
-            with open(filepath, 'r') as file:
-                for line in file:
-                    line = line.strip()
-                    if line.startswith('%') or not line:
-                        continue
-                    try:
-                        values = list(map(float, re.findall(r"[-+]?\d*\.\d+|\d+", line)))
-                        if len(values) >= 6:
-                            source_points.append(values[0:3])
-                            target_points.append(values[3:6])
-                    except ValueError:
-                        # skip lines that cannot be parsed into floats
-                        continue
-        except Exception as e:
-            logging.error(f"Failed to read tag file: {e}")
-            return None, None
-        return np.array(source_points), np.array(target_points)
-    
 
 
     def computeDisplacementMagnitude(self,
@@ -3666,6 +3286,102 @@ class DeformViewLogic(ScriptedLoadableModuleLogic):
 
 
 
+
+
+    def createIncrementalTransform(self,
+                                    backgroundVolume: vtkMRMLScalarVolumeNode,
+                                    transformNode: vtkMRMLTransformNode,
+                                    scale: float,
+                                    name: str) -> vtkMRMLScalarVolumeNode:
+            """
+            Create a volume by applying a scaled version of the transform to the background volume.
+            
+            Args:
+                backgroundVolume: The volume to transform
+                transformNode: The transformation to apply
+                scale: Scale factor (0.0 to 1.0) for the transformation
+                name: Name for the output volume
+            
+            Returns:
+                Transformed volume node
+            """
+            import tempfile
+            import os
+            
+            # Get background image as SimpleITK
+            bgImage = sitkUtils.PullVolumeFromSlicer(backgroundVolume)
+            
+            # Write transform to temporary file
+            with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
+                tmpPath = tmp.name
+            
+            slicer.util.saveNode(transformNode, tmpPath)
+            
+            # Read into SimpleITK
+            itkTx = sitk.ReadTransform(tmpPath)
+            os.remove(tmpPath)
+            
+            # Convert to displacement field
+            dispField = sitk.TransformToDisplacementField(
+                itkTx,
+                sitk.sitkVectorFloat32,
+                bgImage.GetSize(),
+                bgImage.GetOrigin(),
+                bgImage.GetSpacing(),
+                bgImage.GetDirection()
+            )
+            
+            # Scale the displacement field
+            components = [
+                sitk.VectorIndexSelectionCast(dispField, i)
+                for i in range(dispField.GetNumberOfComponentsPerPixel())
+            ]
+
+            # Scale each component
+            components = [sitk.Multiply(c, scale) for c in components]
+
+            scaledDispField = sitk.Compose(components)
+            scaledDispField.CopyInformation(dispField)
+
+            scaledDispField = sitk.Cast(scaledDispField, sitk.sitkVectorFloat64)
+
+            # Convert displacement field back to transform
+            scaledTransform = sitk.DisplacementFieldTransform(scaledDispField)
+            
+            # Apply scaled transform to background volume
+            resampler = sitk.ResampleImageFilter()
+            resampler.SetReferenceImage(bgImage)
+            resampler.SetTransform(scaledTransform)
+            resampler.SetInterpolator(sitk.sitkLinear)
+            resampler.SetDefaultPixelValue(0)
+            
+            transformedImage = resampler.Execute(bgImage)
+            
+            # Create output volume node
+            outputVolume = slicer.mrmlScene.AddNewNodeByClass(
+                "vtkMRMLScalarVolumeNode",
+                name
+            )
+            
+            # Push back to Slicer
+            sitkUtils.PushVolumeToSlicer(transformedImage, outputVolume)
+            
+            # Copy display properties from background volume
+            bgDisplay = backgroundVolume.GetDisplayNode()
+            if bgDisplay:
+                outputDisplay = outputVolume.GetDisplayNode()
+                if not outputDisplay:
+                    outputVolume.CreateDefaultDisplayNodes()
+                    outputDisplay = outputVolume.GetDisplayNode()
+                
+                if outputDisplay:
+                    outputDisplay.SetAndObserveColorNodeID(bgDisplay.GetColorNodeID())
+                    outputDisplay.SetWindow(bgDisplay.GetWindow())
+                    outputDisplay.SetLevel(bgDisplay.GetLevel())
+            
+            return outputVolume
+        
+
     def showNonZeroWireframe(self, foregroundVolume, state, reload=False, modelName="NonZeroWireframe"):
         """
         Extracts the non-zero region of a volume and displays its surface wireframe
@@ -3773,97 +3489,81 @@ class DeformViewLogic(ScriptedLoadableModuleLogic):
 
         return newModelNode
     
-
-    def createIncrementalTransform(self,
-                                    backgroundVolume: vtkMRMLScalarVolumeNode,
-                                    transformNode: vtkMRMLTransformNode,
-                                    scale: float,
-                                    name: str) -> vtkMRMLScalarVolumeNode:
-            """
-            Create a volume by applying a scaled version of the transform to the background volume.
-            
-            Args:
-                backgroundVolume: The volume to transform
-                transformNode: The transformation to apply
-                scale: Scale factor (0.0 to 1.0) for the transformation
-                name: Name for the output volume
-            
-            Returns:
-                Transformed volume node
-            """
-            import tempfile
-            import os
-            
-            # Get background image as SimpleITK
-            bgImage = sitkUtils.PullVolumeFromSlicer(backgroundVolume)
-            
-            # Write transform to temporary file
-            with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
-                tmpPath = tmp.name
-            
-            slicer.util.saveNode(transformNode, tmpPath)
-            
-            # Read into SimpleITK
-            itkTx = sitk.ReadTransform(tmpPath)
-            os.remove(tmpPath)
-            
-            # Convert to displacement field
-            dispField = sitk.TransformToDisplacementField(
-                itkTx,
-                sitk.sitkVectorFloat32,
-                bgImage.GetSize(),
-                bgImage.GetOrigin(),
-                bgImage.GetSpacing(),
-                bgImage.GetDirection()
-            )
-            
-            # Scale the displacement field
-            components = [
-                sitk.VectorIndexSelectionCast(dispField, i)
-                for i in range(dispField.GetNumberOfComponentsPerPixel())
-            ]
-
-            # Scale each component
-            components = [sitk.Multiply(c, scale) for c in components]
-
-            scaledDispField = sitk.Compose(components)
-            scaledDispField.CopyInformation(dispField)
-
-            scaledDispField = sitk.Cast(scaledDispField, sitk.sitkVectorFloat64)
-
-            # Convert displacement field back to transform
-            scaledTransform = sitk.DisplacementFieldTransform(scaledDispField)
-            
-            # Apply scaled transform to background volume
-            resampler = sitk.ResampleImageFilter()
-            resampler.SetReferenceImage(bgImage)
-            resampler.SetTransform(scaledTransform)
-            resampler.SetInterpolator(sitk.sitkLinear)
-            resampler.SetDefaultPixelValue(0)
-            
-            transformedImage = resampler.Execute(bgImage)
-            
-            # Create output volume node
-            outputVolume = slicer.mrmlScene.AddNewNodeByClass(
-                "vtkMRMLScalarVolumeNode",
-                name
-            )
-            
-            # Push back to Slicer
-            sitkUtils.PushVolumeToSlicer(transformedImage, outputVolume)
-            
-            # Copy display properties from background volume
-            bgDisplay = backgroundVolume.GetDisplayNode()
-            if bgDisplay:
-                outputDisplay = outputVolume.GetDisplayNode()
-                if not outputDisplay:
-                    outputVolume.CreateDefaultDisplayNodes()
-                    outputDisplay = outputVolume.GetDisplayNode()
-                
-                if outputDisplay:
-                    outputDisplay.SetAndObserveColorNodeID(bgDisplay.GetColorNodeID())
-                    outputDisplay.SetWindow(bgDisplay.GetWindow())
-                    outputDisplay.SetLevel(bgDisplay.GetLevel())
-            
-            return outputVolume
+    
+    
+    def loadTagFile(self, filepath, text1, text2):
+        print(f"Reading tag file: {filepath}")
+        print("Label: ", text2)
+        points1, points2 = self.read_tag_file(filepath)
+        if points1 is None or points2 is None or len(points1) == 0 or len(points2) == 0:
+            logging.error("No valid points found in tag file.")
+            return False
         
+
+        # create fiducial nodes in Slicer scene
+        fiducialNode1 = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", f"{text1}") #the set of landmarks from the first volume registered
+        fiducialNode2 = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", f"{text2}") #the set of landmarks from the second volume registered
+
+        # add points from tag file to the fiducial nodes
+        for pt in points1:
+            fiducialNode1.AddControlPoint(pt)
+        for pt in points2:
+            fiducialNode2.AddControlPoint(pt)
+
+        displayNode1 = fiducialNode1.GetDisplayNode()
+        if displayNode1:
+            displayNode1.SetVisibility(False)            # Hide in 3D
+            displayNode1.SetVisibility2D(False)          # Hide in 2D slice views
+            displayNode1.SetSelectedColor(0.5, 0.5, 0.5) # Optional: make it less prominent when turned on
+            displayNode1.SetTextScale(5.0)               # Hide label text
+            #displayNode1.SetGlyphTypeFromString("None")  # Hide glyph icon
+            displayNode1.SetHandlesInteractive(False)    # Disable user interaction
+            #displayNode1.SetOpacity(1.0)
+            #displayNode1.SetGlyphScale(5.0)  
+        print("Number of points1:", fiducialNode1.GetNumberOfControlPoints())
+
+        displayNode2 = fiducialNode2.GetDisplayNode()
+        if displayNode2:
+            displayNode2.SetVisibility(False)            # Hide in 3D
+            displayNode2.SetVisibility2D(False)          # Hide in 2D slice views
+            displayNode2.SetSelectedColor(0.5, 0.5, 0.5) # Optional: make it less prominent when turned on
+            displayNode2.SetTextScale(5.0)               # Hide label text
+            displayNode2.SetOpacity(1.0)
+            displayNode2.SetGlyphScale(5.0)  
+            displayNode2.SetHandlesInteractive(False)    # Disable user interaction
+        
+        else:
+            slicer.util.errorDisplay("Failed to load landmark file.")
+        qt.QMessageBox.information(slicer.util.mainWindow(), "Success", "Success! \nLandmark files created and available in Data.")
+        print("Number of points2:", fiducialNode1.GetNumberOfControlPoints())
+
+        logging.info("Landmarks loaded and hidden.")
+        
+        logging.info(f"Created {len(points1)} landmarks in each set.")
+        return True
+    
+
+    def read_tag_file(self, filepath):
+
+        """Parse the tag file robustly and return two numpy arrays of points."""
+        source_points = []
+        target_points = []
+        try:
+            with open(filepath, 'r') as file:
+                for line in file:
+                    line = line.strip()
+                    if line.startswith('%') or not line:
+                        continue
+                    try:
+                        values = list(map(float, re.findall(r"[-+]?\d*\.\d+|\d+", line)))
+                        if len(values) >= 6:
+                            source_points.append(values[0:3])
+                            target_points.append(values[3:6])
+                    except ValueError:
+                        # skip lines that cannot be parsed into floats
+                        continue
+        except Exception as e:
+            logging.error(f"Failed to read tag file: {e}")
+            return None, None
+        return np.array(source_points), np.array(target_points)
+    
