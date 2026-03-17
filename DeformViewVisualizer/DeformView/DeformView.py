@@ -771,7 +771,56 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         inputLayout.addRow("Moving Image:", self.ui.referenceVolume)
         inputLayout.addRow("Fixed Image:", self.ui.backgroundVolume)
         inputLayout.addRow("Transformation:", self.ui.transformNode)
+        self.ui.referenceVolume.setToolTip(
+            "The volume that is warped by the deformation field to match the fixed image."
+        )
+        self.ui.backgroundVolume.setToolTip(
+            "The reference volume that the moving image is registered to. Does not warp."
+        )
+        self.ui.transformNode.setToolTip(
+            "The transformation computed by registration, used to generate the displacement field."
+        )
+        self.ui.applyButton.setToolTip(
+            "Apply the transformation to compute the displacement field and Jacobian map."
+        )
+        self.ui.colorMapSelector.setToolTip(
+            "Choose the colour map used to display the displacement or Jacobian volume. After selecting the colour map, you must reload the volume."
+        )
+        self.ui.loadDisplacementButton.setToolTip(
+            "Load and display the displacement magnitude map as a colour overlay."
+        )
+        self.ui.loadJacobianButton.setToolTip(
+            "Load and display the Jacobian determinant map, showing local volume change."
+        )
+        self.ui.enableDisplacementVisualizationCheckbox.setToolTip(
+            "Toggle the displacement field colour overlay on the slice views."
+        )
+        self.ui.enableHoverDisplayCheckbox.setToolTip(
+            "Show displacement or Jacobian values at the cursor position when hovering."
+        )
+        self.ui.incrementalSlider.setToolTip(
+            "Set the percentage increment used when stepping through the displacement field."
+        )
+        self.ui.opacitySlider.setToolTip(
+            "Adjust the opacity of the displacement or Jacobian colour overlay."
+        )
+        self.ui.thresholdSlider.setToolTip(
+            "Set the threshold range: values outside this range will not be displayed."
+        )
+        self.ui.windowLevelSlider.setToolTip(
+            "Adjust the colour window and level for display contrast."
+        )
+        self.ui.resetWindowLevelButton.setToolTip(
+            "Reset the window and level to their default values."
+        )
+        self.ui.markupTextSizeSlider.setToolTip(
+            "Adjust the size of the text label shown at the cursor marker."
+        )
+        self.ui.markupSizeSlider.setToolTip(
+            "Adjust the size of the cursor marker in the slice views."
+        )
 
+   
         # Add some space before the button
         inputLayout.addRow("", qt.QWidget())  # Empty spacer row
         inputLayout.addRow("", self.ui.applyButton)
@@ -930,8 +979,9 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Add stretch at the end
         self.layout.addStretch(1)
 
-
-
+        self.processingGroup = processingGroup
+        self.vizGroup = vizGroup
+    
     def createDisplacementIcon(self):
         '''
         Creates icon for displacement magnitude button
@@ -1996,6 +2046,7 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """
         Run processing when user clicks 'Compute Mapping' button.
         """
+        
         with slicer.util.tryWithErrorDisplay(_("Failed to compute voxel-wise displacement."), waitCursor=True):
             
             logging.info(f"Reference Volume: {self._parameterNode.referenceVolume}")
@@ -2101,6 +2152,9 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 qt.QTimer.singleShot(100, lambda: self.ensureHoverDisplayActive())
             
             logging.info("Transform applied to both background and displacement volumes")
+            
+    
+
 
 
     def onLoadDisplacementVolume(self, flag:int) -> None:
