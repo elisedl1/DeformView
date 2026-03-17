@@ -207,7 +207,9 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # NEW: Add observer for sequence browser changes
         self.sequenceBrowserObserverTag = None
 
-
+        self.ui.incrementalSlider.valueChanged.connect(
+            lambda val: self.incrementalValueLabel.setText(f"{val}%")
+        )
 
 
         # load jacobian button
@@ -364,6 +366,7 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.incrementalSlider.setPageStep(10)
         self.ui.incrementalSlider.setTickInterval(10)
         self.ui.incrementalSlider.setTickPosition(qt.QSlider.TicksBelow)
+  
         # self.onIncrementalChanged(self.ui.incrementalSlider.value)
 
         #Euclidian
@@ -371,32 +374,55 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.selectedLandmarks.setReadOnly(True)
         self.ui.landmarkEuclidianDistance.setReadOnly(True)
 
-
-
-        # connect displacement button WTIH ICON
+        # Displacement button
         self.ui.loadDisplacementButton.connect(
             "clicked(bool)", lambda: self.onLoadDisplacementVolume(flag=0)
         )
-        # add icon
         iconPath = self.resourcePath("Icons/displacement_icon.png")
         if os.path.exists(iconPath):
             self.ui.loadDisplacementButton.setIcon(qt.QIcon(iconPath))
-            self.ui.loadDisplacementButton.setIconSize(qt.QSize(60, 40))
+            self.ui.loadDisplacementButton.setIconSize(qt.QSize(50, 35))
+        self.ui.loadDisplacementButton.setText("  Load Displacement Magnitude\n  Color Map")
+        self.ui.loadDisplacementButton.setStyleSheet("text-align: left; padding-left: 8px;")
+        self.ui.loadDisplacementButton.setLayoutDirection(qt.Qt.LeftToRight)
 
-        self.ui.loadDisplacementButton.setText("Load Displacement Magnitude\nColor Map")
-
-
-        # connect jacobian button WTIH ICON
-        self.ui.loadJacobianButton.connect(
-            "clicked(bool)", lambda: self.onLoadDisplacementVolume(flag=1)
-        )
-        # add icon
+        # Jacobian button
         iconPath = self.resourcePath("Icons/jacobian_icon.png")
         if os.path.exists(iconPath):
             self.ui.loadJacobianButton.setIcon(qt.QIcon(iconPath))
-            self.ui.loadJacobianButton.setIconSize(qt.QSize(60, 40))
+            self.ui.loadJacobianButton.setIconSize(qt.QSize(50, 35))
 
-        self.ui.loadJacobianButton.setText("Load\nJacobian\nColor Map")
+        self.ui.loadJacobianButton.connect(
+            "clicked(bool)", lambda: self.onLoadDisplacementVolume(flag=1)
+        )
+        self.ui.loadJacobianButton.setText("Load Jacobian\n  Color Map")
+        self.ui.loadJacobianButton.setStyleSheet("text-align: left; padding-left: 8px;")
+        self.ui.loadJacobianButton.setLayoutDirection(qt.Qt.LeftToRight)
+
+        # # connect displacement button WTIH ICON
+        # self.ui.loadDisplacementButton.connect(
+        #     "clicked(bool)", lambda: self.onLoadDisplacementVolume(flag=0)
+        # )
+        # # add icon
+        # iconPath = self.resourcePath("Icons/displacement_icon.png")
+        # if os.path.exists(iconPath):
+        #     self.ui.loadDisplacementButton.setIcon(qt.QIcon(iconPath))
+        #     self.ui.loadDisplacementButton.setIconSize(qt.QSize(60, 40))
+
+        # self.ui.loadDisplacementButton.setText("Load Displacement Magnitude\nColor Map")
+
+
+        # # connect jacobian button WTIH ICON
+        # self.ui.loadJacobianButton.connect(
+        #     "clicked(bool)", lambda: self.onLoadDisplacementVolume(flag=1)
+        # )
+        # # add icon
+        # iconPath = self.resourcePath("Icons/jacobian_icon.png")
+        # if os.path.exists(iconPath):
+        #     self.ui.loadJacobianButton.setIcon(qt.QIcon(iconPath))
+        #     self.ui.loadJacobianButton.setIconSize(qt.QSize(60, 40))
+
+        # self.ui.loadJacobianButton.setText("Load\nJacobian\nColor Map")
 
 
 
@@ -791,22 +817,31 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         loadButtonsLayout.addSpacing(14)
         loadButtonsLayout.addWidget(self.ui.loadJacobianButton)
         loadButtonsLayout.addStretch(1)
+        
+        # buttonWidth = max(self.ui.loadDisplacementButton.sizeHint.width(),
+        #           self.ui.loadJacobianButton.sizeHint.width())
+        # self.ui.loadDisplacementButton.setFixedWidth(int(buttonWidth * 0.9))
+        # self.ui.loadJacobianButton.setFixedWidth(int(buttonWidth * 0.9))
 
         processingLayout.addRow(" ", loadButtonsLayout)
 
         # Row 2: Checkboxes
         checkboxLayout = qt.QHBoxLayout()
+        checkboxLayout.addStretch(1)
         checkboxLayout.addWidget(self.ui.enableDisplacementVisualizationCheckbox)
         checkboxLayout.addWidget(self.ui.enableHoverDisplayCheckbox)
         checkboxLayout.addStretch(1)
 
         processingLayout.addRow(" ", checkboxLayout)
 
-        # Row 3: Incremental slider (FIXED - now uses processingLayout)
+        # Row 3: Incremental slider
         incrementalLayout = qt.QHBoxLayout()
-        incrementalLayout.addWidget(self.ui.incrementalSlider, 1)  # Stretch factor
+        incrementalLayout.addWidget(self.ui.incrementalSlider, 1)
+        self.incrementalValueLabel = qt.QLabel(f"{self.ui.incrementalSlider.value}%")
+        self.incrementalValueLabel.setFixedWidth(35)
+        self.incrementalValueLabel.setAlignment(qt.Qt.AlignRight | qt.Qt.AlignVCenter)
+        incrementalLayout.addWidget(self.incrementalValueLabel)
         processingLayout.addRow("Increment:", incrementalLayout)
-
 
         # === SECTION 4: VISUALIZATION SETTINGS ===
 
@@ -894,6 +929,7 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Add stretch at the end
         self.layout.addStretch(1)
+
 
 
     def createDisplacementIcon(self):
@@ -993,37 +1029,45 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
     def updateButtonStyles(self):
-        '''
-        Updates button appearance based on which visualization is active
-        '''
-        # Detect if we're in dark mode by checking the palette
         palette = qt.QPalette()
         isDarkMode = palette.window().color().lightness() < 128
         
         if isDarkMode:
-            # Dark mode: lighten the active button
             activeStyle = """
                 QPushButton {
                     background-color: rgba(255, 255, 255, 0.15);
-                    border: 2px solid rgba(255, 255, 255, 0.3);
+                    border: 2px solid rgba(255, 255, 255, 0.6);
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+            """
+            inactiveStyle = """
+                QPushButton {
+                    background-color: transparent;
+                    border: 2px solid rgba(255, 255, 255, 0.2);
+                    border-radius: 4px;
+                    font-weight: normal;
+                    color: rgba(255, 255, 255, 0.5);
                 }
             """
         else:
-            # Light mode: darken the active button
             activeStyle = """
                 QPushButton {
                     background-color: rgba(0, 0, 0, 0.08);
-                    border: 2px solid rgba(0, 0, 0, 0.2);
+                    border: 2px solid rgba(0, 0, 0, 0.5);
+                    border-radius: 4px;
+                    font-weight: bold;
                 }
             """
-        
-        # Style for inactive button (same for both modes)
-        inactiveStyle = """
-            QPushButton {
-                background-color: transparent;
-                border: 2px solid transparent;
-            }
-        """
+            inactiveStyle = """
+                QPushButton {
+                    background-color: transparent;
+                    border: 2px solid rgba(0, 0, 0, 0.2);
+                    border-radius: 4px;
+                    font-weight: normal;
+                    color: rgba(0, 0, 0, 0.45);
+                }
+            """
         
         if self.currentVisualizationFlag == 0:
             self.ui.loadDisplacementButton.setStyleSheet(activeStyle)
@@ -1031,6 +1075,46 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         else:
             self.ui.loadDisplacementButton.setStyleSheet(inactiveStyle)
             self.ui.loadJacobianButton.setStyleSheet(activeStyle)
+
+    # def updateButtonStyles(self):
+    #     '''
+    #     Updates button appearance based on which visualization is active
+    #     '''
+    #     # Detect if we're in dark mode by checking the palette
+    #     palette = qt.QPalette()
+    #     isDarkMode = palette.window().color().lightness() < 128
+        
+    #     if isDarkMode:
+    #         # Dark mode: lighten the active button
+    #         activeStyle = """
+    #             QPushButton {
+    #                 background-color: rgba(255, 255, 255, 0.15);
+    #                 border: 2px solid rgba(255, 255, 255, 0.3);
+    #             }
+    #         """
+    #     else:
+    #         # Light mode: darken the active button
+    #         activeStyle = """
+    #             QPushButton {
+    #                 background-color: rgba(0, 0, 0, 0.08);
+    #                 border: 2px solid rgba(0, 0, 0, 0.2);
+    #             }
+    #         """
+        
+    #     # Style for inactive button (same for both modes)
+    #     inactiveStyle = """
+    #         QPushButton {
+    #             background-color: transparent;
+    #             border: 2px solid transparent;
+    #         }
+    #     """
+        
+    #     if self.currentVisualizationFlag == 0:
+    #         self.ui.loadDisplacementButton.setStyleSheet(activeStyle)
+    #         self.ui.loadJacobianButton.setStyleSheet(inactiveStyle)
+    #     else:
+    #         self.ui.loadDisplacementButton.setStyleSheet(inactiveStyle)
+    #         self.ui.loadJacobianButton.setStyleSheet(activeStyle)
 
         
 
@@ -2277,8 +2361,8 @@ class DeformViewWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         #print("Image Data", imageData)
         if imageData:
             minScalar, maxScalar = imageData.GetScalarRange()
-            # defaultMinValue = minScalar + 0.009 * (maxScalar - minScalar) #Default minimum set to 2%
-            defaultMinValue = 0.009
+            defaultMinValue = minScalar + 0.009 * (maxScalar - minScalar) #Default minimum set to 2%
+            #defaultMinValue = 0.009
             self.scalarRange = (float(minScalar), float(maxScalar))  # store exact range
             #print(f"min: {minScalar}, max: {maxScalar}")
             #print(defaultMinValue)
