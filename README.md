@@ -10,7 +10,7 @@ DeformView provides two complementary visualization maps:
 
 A **real-time cursor display** allows users to hover over any voxel and directly view the corresponding **displacement or Jacobian value**.
 
-![](main_UI.png)
+![](exampleImages/main_UI.png)
 
 ---
 
@@ -79,7 +79,7 @@ Download and install **3D Slicer** from the official website: [https://www.slice
 - Controls the **step size** of the applied transformation
 - Allows visualization of **0–100% of the transformation**
 
-![](increment.gif)
+![](exampleImages/increment.gif)
 
 ---
 
