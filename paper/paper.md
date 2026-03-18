@@ -91,22 +91,6 @@ Integration of Previous Methods
 
 DeformView integrates with the existing 3D Slicer Transform Module, combining displacement magnitude maps with overlaid glyphs from the Transform Module in a single view. As shown in Figure X, this overlay provides both a quantified, spatially localized understanding of deformation magnitude and an intuitive representation of local direction changes.  
 
-# Mathematics
-
-Single dollars ($) are required for inline mathematics e.g. $f(x) = e^{\pi/x}$
-
-Double dollars make self-standing equations:
-
-$$\Theta(x) = \left\{\begin{array}{l}
-0\textrm{ if } x < 0\cr
-1\textrm{ else}
-\end{array}\right.$$
-
-You can also use plain \LaTeX for equations
-\begin{equation}\label{eq:fourier}
-\hat f(\omega) = \int_{-\infty}^{\infty} f(x) e^{i\omega x} dx
-\end{equation}
-and refer to \autoref{eq:fourier} from text.
 
 # Citations
 
