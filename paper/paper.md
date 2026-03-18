@@ -1,4 +1,4 @@
-<img width="468" height="25" alt="image" src="https://github.com/user-attachments/assets/07569720-4bd7-46cd-a4bc-e0369617e277" />---
+---
 title: 'DeformView: Quantitative Visualization of Non-Linear Deformation Fields for Use in Image-Guided
 Neurosurgery'
 tags:
