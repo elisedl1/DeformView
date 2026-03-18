@@ -105,6 +105,12 @@ Example data (transformation file; moving and source images) have been included 
 
 ---
 
+If you'd like to contribute, please first refer to the Slicer developer documentation https://www.slicer.org/wiki/Documentation/Nightly/Developers
+
+Please also see the CONTRIBUTING.md file for specific information.
+
+---
+
 ## Contributors
 - Elise Donszelmann-Lund (@elisedl1)
 - Isabel Frolick (@isabelfrolick)
