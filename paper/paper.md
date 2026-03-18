@@ -64,7 +64,7 @@ This work is additionally being presented as a peer-reviewed poster at the Imagi
 
 DeformView accepts a deformation field (transform node) and a reference image as inputs and produces two complementary, dense quantitative visualizations overlaid directly on the image. 
 
-![Overview of DeformView 3D Slicer Module. Left: user interface for the proposed module Right: dense colour map (red is higher deformation) with cursor displaying point-wise deformation magnitude on hover.\label{fig:UI_overview}](figures/UI_overview.png){width = 60%}
+![Overview of DeformView 3D Slicer Module. Left: user interface for the proposed module Right: dense colour map (red is higher deformation) with cursor displaying point-wise deformation magnitude on hover.\label{fig:UI_overview}](figures/UI_overview.png){width=60%}
 
 ### Displacement Magnitude Map
 
@@ -78,7 +78,7 @@ This map renders the magnitude of the Jacobian determinant of the deformation fi
 
 DeformView introduces an Increment Transform feature. Rather than displaying only the final deformation, the transformation is incrementally applied to the moving image across 10 discrete steps (0.1x, 0.2x, … 1.0x of the full transform). This sliding scale allows users to observe the progressive warping of the image and develop an intuitive understanding of how the deformation accumulates spatially, which is particularly useful for training and for diagnosing registration behaviour at intermediate stages.  
 
-![DeformView visualizations versus existing Transform module visualizations. Top left: displacement magnitude overlay. Top right: jacobian overlay. Bottom left: glyph visualization. Bottom right: grid visualization.\label{fig:four_plot}](figures/4_plot.png){width = 60%}
+![DeformView visualizations versus existing Transform module visualizations. Top left: displacement magnitude overlay. Top right: jacobian overlay. Bottom left: glyph visualization. Bottom right: grid visualization.\label{fig:four_plot}](figures/4_plot.png){width=60%}
 
 ### Integration of Previous Methods
 
@@ -98,7 +98,7 @@ DeformView achieved higher mean scores than Transform Visualizer across all four
 
 ![User study (n=10) results comparing our DeformView module and existing Transform module on four attributes
 (1–5 scale; green is better). DeformView significantly outperforms existing module on helpfulness (p=0.008) and intuition
-(p=0.027), with higher mean scores across all metrics.\label{fig:user}](figures/user_study.png){width = 60%}
+(p=0.027), with higher mean scores across all metrics.\label{fig:user}](figures/user_study.png){width=60%}
 
 ### Conclusion
 
