@@ -26,7 +26,7 @@ To activate and use this module please follow these steps:
 
 ## Sample Data
 
-Example data (transformation file; moving and source images) have been included under the 'TestData' folder.
+Example data (transformation file; moving and source images) have been included under the `TestData` folder.
 
 ## Contribute
 
